@@ -89,7 +89,31 @@
     </div>
 
     <div class="card">
-      <div class="card-title">2. 止損設定</div>
+      <div class="card-title">2. 期間高低 / 距離%</div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">期間最高 (Period High)</label>
+          <input type="number" step="0.001" id="periodHigh" value="358.25" oninput="calcForward()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">期間最低 (Period Low)</label>
+          <input type="number" step="0.001" id="periodLow" value="350.367" oninput="calcForward()">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="result-box">
+          <div class="result-label">期間最高距現價 %</div>
+          <div class="result-val val-green" id="res-high-dist">0.00%</div>
+        </div>
+        <div class="result-box">
+          <div class="result-label">期間最低距現價 %</div>
+          <div class="result-val val-red" id="res-low-dist">0.00%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">3. 止損設定</div>
       <div class="form-group">
         <label class="form-label">設定方式</label>
         <select id="stopMode" onchange="toggleStopMode()">
@@ -113,7 +137,7 @@
     </div>
 
     <div class="card">
-      <div class="card-title">3. 計算結果</div>
+      <div class="card-title">4. 計算結果</div>
       <div class="grid-2" style="margin-bottom: 10px;">
         <div class="result-box">
           <div class="result-label">可買股數 (向下取整)</div>
@@ -137,15 +161,35 @@
     </div>
 
     <div class="card">
-      <div class="card-title">4. 快速目標與情境 (+/- %)</div>
+      <div class="card-title">5. 快速目標與情境 (可自訂 +/- %)</div>
+      <div class="form-group">
+        <label class="form-label">自訂 % (預設5%)</label>
+        <input type="number" step="0.1" id="customPct" value="5.0" oninput="calcForward()">
+        <div class="badge-group">
+          <span class="badge" onclick="setCustomPct(2)">2%</span>
+          <span class="badge active" onclick="setCustomPct(5)">5%</span>
+          <span class="badge" onclick="setCustomPct(8)">8%</span>
+          <span class="badge" onclick="setCustomPct(10)">10%</span>
+        </div>
+      </div>
       <div class="grid-2">
         <div class="result-box">
-          <div class="result-label">+5% 目標價</div>
-          <div class="result-val val-green" id="res-target-plus5">$0.00</div>
+          <div class="result-label">現價 + 自訂%</div>
+          <div class="result-val val-green" id="res-target-plus">$0.00</div>
         </div>
         <div class="result-box">
-          <div class="result-label">-5% 價位</div>
-          <div class="result-val val-red" id="res-target-minus5">$0.00</div>
+          <div class="result-label">現價 - 自訂%</div>
+          <div class="result-val val-red" id="res-target-minus">$0.00</div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:10px;">
+        <div class="result-box">
+          <div class="result-label">相當於多少 R</div>
+          <div class="result-val val-accent" id="res-r-value">0.00 R</div>
+        </div>
+        <div class="result-box">
+          <div class="result-label">若以此%做止損之虧損</div>
+          <div class="result-val" id="res-custom-loss">$0.00</div>
         </div>
       </div>
     </div>
@@ -233,6 +277,11 @@
       calcForward();
     }
 
+    function setCustomPct(val) {
+      document.getElementById('customPct').value = val;
+      calcForward();
+    }
+
     function setRevLoss(val) {
       document.getElementById('rev-loss').value = val;
       calcReverse();
@@ -243,6 +292,9 @@
       const capital = parseFloat(document.getElementById('capital').value) || 0;
       const riskPct = (parseFloat(document.getElementById('riskPct').value) || 0) / 100;
       const mode = document.getElementById('stopMode').value;
+      const periodHigh = parseFloat(document.getElementById('periodHigh').value) || 0;
+      const periodLow = parseFloat(document.getElementById('periodLow').value) || 0;
+      const customPct = (parseFloat(document.getElementById('customPct').value) || 0) / 100;
 
       let stopPrice = 0;
       if (mode === 'price') {
@@ -254,7 +306,7 @@
 
       const riskPerShare = Math.max(0, price - stopPrice);
       const maxRiskDollar = capital * riskPct;
-      
+
       let shares = 0;
       if (riskPerShare > 0) {
         shares = Math.floor(maxRiskDollar / riskPerShare);
@@ -269,8 +321,21 @@
       document.getElementById('res-cost').innerText = '$' + cost.toFixed(2);
       document.getElementById('res-stopdist').innerText = stopDistPct.toFixed(2) + '% ($' + riskPerShare.toFixed(2) + ')';
 
-      document.getElementById('res-target-plus5').innerText = '$' + (price * 1.05).toFixed(2);
-      document.getElementById('res-target-minus5').innerText = '$' + (price * 0.95).toFixed(2);
+      const highDist = price > 0 ? ((periodHigh - price) / price) * 100 : 0;
+      const lowDist = price > 0 ? ((periodLow - price) / price) * 100 : 0;
+      document.getElementById('res-high-dist').innerText = (highDist >= 0 ? '+' : '') + highDist.toFixed(2) + '%';
+      document.getElementById('res-low-dist').innerText = (lowDist >= 0 ? '+' : '') + lowDist.toFixed(2) + '%';
+
+      const targetPlus = price * (1 + customPct);
+      const targetMinus = price * (1 - customPct);
+      document.getElementById('res-target-plus').innerText = '$' + targetPlus.toFixed(2);
+      document.getElementById('res-target-minus').innerText = '$' + targetMinus.toFixed(2);
+
+      const customLoss = shares * (price - targetMinus);
+      document.getElementById('res-custom-loss').innerText = '$' + customLoss.toFixed(2);
+
+      const rValue = stopDistPct !== 0 ? (customPct * 100) / stopDistPct : 0;
+      document.getElementById('res-r-value').innerText = rValue.toFixed(2) + ' R';
     }
 
     function calcReverse() {
