@@ -15,6 +15,7 @@
       --accent-hover: #0ea5e9;
       --green: #22c55e;
       --red: #ef4444;
+      --yellow: #eab308;
       --text: #f8fafc;
       --text-dim: #94a3b8;
       --border: #334155;
@@ -23,38 +24,56 @@
     body { background: var(--bg); color: var(--text); padding: 16px; padding-bottom: 40px; }
     .header { text-align: center; margin-bottom: 16px; }
     .header h1 { font-size: 1.25rem; color: var(--accent); }
-    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
-    .tab-btn { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-dim); font-size: 0.9rem; font-weight: 600; cursor: pointer; text-align: center; }
+    .header .sub { font-size: 0.7rem; color: var(--text-dim); margin-top: 4px; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tab-btn { flex: 1; min-width: 90px; padding: 10px 6px; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-dim); font-size: 0.82rem; font-weight: 600; cursor: pointer; text-align: center; }
     .tab-btn.active { background: var(--accent); color: #0f172a; border-color: var(--accent); }
     .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
     .card-title { font-size: 0.95rem; font-weight: bold; color: var(--accent); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
     .form-group { margin-bottom: 12px; }
     .form-label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 4px; }
     .input-row { display: flex; gap: 8px; align-items: center; }
-    input, select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: #0b1120; color: #fff; font-size: 1rem; outline: none; }
-    input:focus, select:focus { border-color: var(--accent); }
+    input, select, textarea { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: #0b1120; color: #fff; font-size: 1rem; outline: none; font-family: inherit; }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+    input.input-error { border-color: var(--red); }
     .badge-group { display: flex; gap: 6px; margin-top: 6px; overflow-x: auto; padding-bottom: 2px; }
     .badge { padding: 4px 10px; border-radius: 6px; background: #0f172a; border: 1px solid var(--border); font-size: 0.75rem; color: var(--text-dim); cursor: pointer; white-space: nowrap; }
     .badge.active { border-color: var(--accent); color: var(--accent); }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
     .result-box { background: #0f172a; border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
     .result-label { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 4px; }
     .result-val { font-size: 1.15rem; font-weight: bold; }
     .val-green { color: var(--green); }
     .val-red { color: var(--red); }
     .val-accent { color: var(--accent); }
+    .val-yellow { color: var(--yellow); }
     .note { font-size: 0.75rem; color: var(--text-dim); line-height: 1.4; margin-top: 8px; }
+    .warn-box { background: rgba(239,68,68,0.12); border: 1px solid var(--red); border-radius: 8px; padding: 8px 10px; font-size: 0.78rem; color: #fca5a5; margin-top: 8px; display:none; }
+    .btn { display: block; width: 100%; padding: 12px; border-radius: 8px; border: none; background: var(--accent); color: #0f172a; font-size: 0.95rem; font-weight: 700; cursor: pointer; margin-top: 8px; }
+    .btn:active { background: var(--accent-hover); }
+    .btn-secondary { background: var(--card-bg); color: var(--text); border: 1px solid var(--border); }
+    table.cmp-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 10px; }
+    table.cmp-table th, table.cmp-table td { padding: 7px 6px; text-align: right; border-bottom: 1px solid var(--border); }
+    table.cmp-table th:first-child, table.cmp-table td:first-child { text-align: left; }
+    table.cmp-table th { color: var(--text-dim); font-weight: 600; }
+    .timestamp { font-size: 0.7rem; color: var(--text-dim); text-align: center; margin-top: 6px; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 700; }
+    .pill-green { background: rgba(34,197,94,0.15); color: var(--green); }
+    .pill-red { background: rgba(239,68,68,0.15); color: var(--red); }
   </style>
 </head>
 <body>
 
   <div class="header">
     <h1>美股倉位與風險計算機</h1>
+    <div class="sub">v2 · 支援大盤 / 概念成分股比較（報價可延遲，僅供參考）</div>
   </div>
 
   <div class="tabs">
-    <div class="tab-btn active" onclick="switchTab('forward')">正推：算可買股數</div>
-    <div class="tab-btn" onclick="switchTab('reverse')">反推：算止損價</div>
+    <div class="tab-btn active" data-tab="forward" onclick="switchTab('forward')">正推：算股數</div>
+    <div class="tab-btn" data-tab="reverse" onclick="switchTab('reverse')">反推：算止損</div>
+    <div class="tab-btn" data-tab="compare" onclick="switchTab('compare')">大盤/概念比較</div>
   </div>
 
   <!-- 正推計算模式 -->
@@ -64,21 +83,21 @@
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">股票代號</label>
-          <input type="text" id="symbol" value="JPM">
+          <input type="text" id="symbol" value="JPM" oninput="syncSymbol()">
         </div>
         <div class="form-group">
           <label class="form-label">現價 (USD)</label>
-          <input type="number" step="0.001" id="price" value="357.620" oninput="calcForward()">
+          <input type="number" inputmode="decimal" step="0.001" min="0" id="price" value="357.620" oninput="calcForward()">
         </div>
       </div>
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">倉位總額 ($)</label>
-          <input type="number" id="capital" value="10000" oninput="calcForward()">
+          <input type="number" inputmode="decimal" step="1" min="0" id="capital" value="10000" oninput="calcForward()">
         </div>
         <div class="form-group">
           <label class="form-label">風險 % (預設1%)</label>
-          <input type="number" step="0.1" id="riskPct" value="1.0" oninput="calcForward()">
+          <input type="number" inputmode="decimal" step="0.1" min="0" id="riskPct" value="1.0" oninput="calcForward()">
           <div class="badge-group">
             <span class="badge" onclick="setRisk(0.5)">0.5%</span>
             <span class="badge active" onclick="setRisk(1)">1.0%</span>
@@ -86,28 +105,32 @@
           </div>
         </div>
       </div>
+      <div class="form-group">
+        <label class="form-label">每筆佣金／手續費 (雙邊, $，選填)</label>
+        <input type="number" inputmode="decimal" step="0.01" min="0" id="commission" value="0" oninput="calcForward()">
+      </div>
     </div>
 
     <div class="card">
       <div class="card-title">2. 期間高低 / 距離%</div>
       <div class="grid-2">
         <div class="form-group">
-          <label class="form-label">期間最高 (Period High)</label>
-          <input type="number" step="0.001" id="periodHigh" value="358.25" oninput="calcForward()">
+          <label class="form-label">期間最高 (Period High，選填)</label>
+          <input type="number" inputmode="decimal" step="0.001" min="0" id="periodHigh" value="" placeholder="留空則不計算" oninput="calcForward()">
         </div>
         <div class="form-group">
-          <label class="form-label">期間最低 (Period Low)</label>
-          <input type="number" step="0.001" id="periodLow" value="350.367" oninput="calcForward()">
+          <label class="form-label">期間最低 (Period Low，選填)</label>
+          <input type="number" inputmode="decimal" step="0.001" min="0" id="periodLow" value="" placeholder="留空則不計算" oninput="calcForward()">
         </div>
       </div>
       <div class="grid-2">
         <div class="result-box">
           <div class="result-label">期間最高距現價 %</div>
-          <div class="result-val val-green" id="res-high-dist">0.00%</div>
+          <div class="result-val val-green" id="res-high-dist">--</div>
         </div>
         <div class="result-box">
           <div class="result-label">期間最低距現價 %</div>
-          <div class="result-val val-red" id="res-low-dist">0.00%</div>
+          <div class="result-val val-red" id="res-low-dist">--</div>
         </div>
       </div>
     </div>
@@ -123,17 +146,18 @@
       </div>
       <div class="form-group" id="group-stop-price">
         <label class="form-label">止損價 (USD)</label>
-        <input type="number" step="0.001" id="stopPrice" value="350" oninput="calcForward()">
+        <input type="number" inputmode="decimal" step="0.001" min="0" id="stopPrice" value="350" oninput="calcForward()">
       </div>
       <div class="form-group" id="group-stop-pct" style="display:none;">
         <label class="form-label">止損跌幅 (%)</label>
-        <input type="number" step="0.1" id="stopPctInput" value="5.0" oninput="calcForward()">
+        <input type="number" inputmode="decimal" step="0.1" min="0" id="stopPctInput" value="5.0" oninput="calcForward()">
         <div class="badge-group">
           <span class="badge" onclick="setStopPct(3)">-3%</span>
           <span class="badge active" onclick="setStopPct(5)">-5%</span>
           <span class="badge" onclick="setStopPct(8)">-8%</span>
         </div>
       </div>
+      <div class="warn-box" id="forward-warn"></div>
     </div>
 
     <div class="card">
@@ -144,7 +168,7 @@
           <div class="result-val val-green" id="res-shares">0 股</div>
         </div>
         <div class="result-box">
-          <div class="result-label">實際最大虧損</div>
+          <div class="result-label">實際最大虧損 (連佣金)</div>
           <div class="result-val val-red" id="res-maxloss">$0.00</div>
         </div>
       </div>
@@ -164,7 +188,7 @@
       <div class="card-title">5. 快速目標與情境 (可自訂 +/- %)</div>
       <div class="form-group">
         <label class="form-label">自訂 % (預設5%)</label>
-        <input type="number" step="0.1" id="customPct" value="5.0" oninput="calcForward()">
+        <input type="number" inputmode="decimal" step="0.1" min="0" id="customPct" value="5.0" oninput="calcForward()">
         <div class="badge-group">
           <span class="badge" onclick="setCustomPct(2)">2%</span>
           <span class="badge active" onclick="setCustomPct(5)">5%</span>
@@ -193,6 +217,25 @@
         </div>
       </div>
     </div>
+
+    <div class="card">
+      <div class="card-title">6. R 倍數獲利目標</div>
+      <div class="grid-3">
+        <div class="result-box">
+          <div class="result-label">1R 目標價</div>
+          <div class="result-val val-green" id="res-r1">$0.00</div>
+        </div>
+        <div class="result-box">
+          <div class="result-label">2R 目標價</div>
+          <div class="result-val val-green" id="res-r2">$0.00</div>
+        </div>
+        <div class="result-box">
+          <div class="result-label">3R 目標價</div>
+          <div class="result-val val-green" id="res-r3">$0.00</div>
+        </div>
+      </div>
+      <div class="note">R = 每股風險（現價 − 止損價）。1R/2R/3R 為以風險倍數計算的獲利目標價，方便設定止盈。</div>
+    </div>
   </div>
 
   <!-- 反推計算模式 -->
@@ -202,22 +245,23 @@
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">現價 (USD)</label>
-          <input type="number" step="0.001" id="rev-price" value="357.620" oninput="calcReverse()">
+          <input type="number" inputmode="decimal" step="0.001" min="0" id="rev-price" value="357.620" oninput="calcReverse()">
         </div>
         <div class="form-group">
           <label class="form-label">持有 / 擬買股數</label>
-          <input type="number" id="rev-shares" value="13" oninput="calcReverse()">
+          <input type="number" inputmode="decimal" step="1" min="0" id="rev-shares" value="13" oninput="calcReverse()">
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">最大允許虧損總額 ($)</label>
-        <input type="number" id="rev-loss" value="100" oninput="calcReverse()">
+        <input type="number" inputmode="decimal" step="1" min="0" id="rev-loss" value="100" oninput="calcReverse()">
         <div class="badge-group">
           <span class="badge" onclick="setRevLoss(50)">$50</span>
           <span class="badge active" onclick="setRevLoss(100)">$100</span>
           <span class="badge" onclick="setRevLoss(200)">$200</span>
         </div>
       </div>
+      <div class="warn-box" id="reverse-warn"></div>
     </div>
 
     <div class="card">
@@ -245,19 +289,81 @@
     </div>
   </div>
 
+  <!-- 大盤 / 概念成分股比較 -->
+  <div id="tab-compare" style="display:none;">
+    <div class="card">
+      <div class="card-title">1. 自動抓取比較（免費報價，非即時）</div>
+      <div class="note">使用 Stooq 免費報價來源，不需 API Key。一般延遲數分鐘至最多約1小時，適合非高頻對比用途。若你的網絡/瀏覽器封鎖跨網域請求，請改用下方「手動輸入模式」。</div>
+      <div class="form-group" style="margin-top:10px;">
+        <label class="form-label">你持有/關注的股票（可用逗號分隔多個，即概念成分股）</label>
+        <input type="text" id="cmp-stocks" value="JPM" placeholder="例如: JPM, BAC, GS, MS">
+      </div>
+      <div class="form-group">
+        <label class="form-label">比較基準</label>
+        <select id="cmp-benchmark">
+          <option value="SPY">SPY — 標普500 大盤</option>
+          <option value="QQQ">QQQ — 納指100 科技</option>
+          <option value="DIA">DIA — 道瓊工業</option>
+          <option value="IWM">IWM — 羅素2000 小型股</option>
+          <option value="SMH">SMH — 半導體</option>
+          <option value="XLF">XLF — 金融業</option>
+          <option value="XLE">XLE — 能源業</option>
+          <option value="XLK">XLK — 科技業</option>
+          <option value="ARKK">ARKK — 創新成長</option>
+          <option value="CUSTOM">自訂代號 (見下)</option>
+        </select>
+      </div>
+      <div class="form-group" id="cmp-custom-bm-group" style="display:none;">
+        <label class="form-label">自訂基準代號</label>
+        <input type="text" id="cmp-custom-bm" value="" placeholder="例如: VOO">
+      </div>
+      <button class="btn" onclick="fetchComparison()">抓取即時報價並比較</button>
+      <div class="timestamp" id="cmp-timestamp"></div>
+      <div class="warn-box" id="cmp-warn"></div>
+      <div id="cmp-result-wrap"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">2. 手動輸入模式（無需網絡）</div>
+      <div class="note">如果自動抓取失敗，可自行輸入今日（或任意期間）漲跌幅 %，一樣可以算出相對強弱。</div>
+      <div id="cmp-manual-rows">
+        <div class="grid-3 cmp-manual-row" style="margin-bottom:8px;">
+          <input type="text" class="cmp-manual-name" value="股票A" placeholder="名稱/代號">
+          <input type="number" inputmode="decimal" step="0.01" class="cmp-manual-pct" value="0" placeholder="今日 % 變動">
+          <div></div>
+        </div>
+      </div>
+      <button class="btn btn-secondary" onclick="addManualRow()">+ 新增一行</button>
+      <div class="form-group" style="margin-top:10px;">
+        <label class="form-label">基準 % 變動（大盤/概念指數）</label>
+        <input type="number" inputmode="decimal" step="0.01" id="cmp-manual-bm" value="0">
+      </div>
+      <button class="btn" onclick="calcManualCompare()">計算相對強弱</button>
+      <div id="cmp-manual-result-wrap"></div>
+    </div>
+  </div>
+
   <script>
     function switchTab(tab) {
-      document.querySelectorAll('.tab-btn').forEach((b, idx) => {
-        b.classList.toggle('active', (tab === 'forward' && idx === 0) || (tab === 'reverse' && idx === 1));
+      document.querySelectorAll('.tab-btn').forEach((b) => {
+        b.classList.toggle('active', b.dataset.tab === tab);
       });
       document.getElementById('tab-forward').style.display = tab === 'forward' ? 'block' : 'none';
       document.getElementById('tab-reverse').style.display = tab === 'reverse' ? 'block' : 'none';
+      document.getElementById('tab-compare').style.display = tab === 'compare' ? 'block' : 'none';
       if (tab === 'reverse') {
         document.getElementById('rev-price').value = document.getElementById('price').value;
-        const forwardShares = parseInt(document.getElementById('res-shares').innerText) || 13;
+        const forwardShares = window.lastCalc && window.lastCalc.shares ? window.lastCalc.shares : 13;
         document.getElementById('rev-shares').value = forwardShares;
         calcReverse();
       }
+      if (tab === 'compare') {
+        document.getElementById('cmp-stocks').value = document.getElementById('symbol').value || 'JPM';
+      }
+    }
+
+    function syncSymbol() {
+      // keep placeholders consistent; no calc needed here
     }
 
     function toggleStopMode() {
@@ -287,76 +393,291 @@
       calcReverse();
     }
 
+    function fmtMoney(n) {
+      if (!isFinite(n)) return '--';
+      return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function fmtPct(n, digits) {
+      if (!isFinite(n)) return '--';
+      digits = digits === undefined ? 2 : digits;
+      return (n >= 0 ? '+' : '') + n.toFixed(digits) + '%';
+    }
+
     function calcForward() {
-      const price = parseFloat(document.getElementById('price').value) || 0;
-      const capital = parseFloat(document.getElementById('capital').value) || 0;
-      const riskPct = (parseFloat(document.getElementById('riskPct').value) || 0) / 100;
+      const warnBox = document.getElementById('forward-warn');
+      warnBox.style.display = 'none';
+      warnBox.innerText = '';
+
+      const price = parseFloat(document.getElementById('price').value);
+      const capital = parseFloat(document.getElementById('capital').value);
+      const riskPct = parseFloat(document.getElementById('riskPct').value);
       const mode = document.getElementById('stopMode').value;
-      const periodHigh = parseFloat(document.getElementById('periodHigh').value) || 0;
-      const periodLow = parseFloat(document.getElementById('periodLow').value) || 0;
-      const customPct = (parseFloat(document.getElementById('customPct').value) || 0) / 100;
+      const periodHighRaw = document.getElementById('periodHigh').value;
+      const periodLowRaw = document.getElementById('periodLow').value;
+      const customPct = parseFloat(document.getElementById('customPct').value);
+      const commission = parseFloat(document.getElementById('commission').value) || 0;
 
-      let stopPrice = 0;
+      const priceValid = isFinite(price) && price > 0;
+      const capitalValid = isFinite(capital) && capital > 0;
+      const riskPctValid = isFinite(riskPct) && riskPct > 0;
+
+      if (!priceValid) {
+        warnBox.innerText = '請輸入大於 0 的現價。';
+        warnBox.style.display = 'block';
+      } else if (!capitalValid) {
+        warnBox.innerText = '請輸入大於 0 的倉位總額。';
+        warnBox.style.display = 'block';
+      } else if (!riskPctValid) {
+        warnBox.innerText = '請輸入大於 0 的風險百分比。';
+        warnBox.style.display = 'block';
+      }
+
+      let stopPrice = NaN;
       if (mode === 'price') {
-        stopPrice = parseFloat(document.getElementById('stopPrice').value) || 0;
+        stopPrice = parseFloat(document.getElementById('stopPrice').value);
       } else {
-        const stopPct = (parseFloat(document.getElementById('stopPctInput').value) || 0) / 100;
-        stopPrice = price * (1 - stopPct);
+        const stopPct = parseFloat(document.getElementById('stopPctInput').value);
+        if (priceValid && isFinite(stopPct) && stopPct > 0) {
+          stopPrice = price * (1 - stopPct / 100);
+        }
       }
 
-      const riskPerShare = Math.max(0, price - stopPrice);
-      const maxRiskDollar = capital * riskPct;
+      const validInputs = priceValid && capitalValid && riskPctValid && isFinite(stopPrice) && stopPrice >= 0;
 
-      let shares = 0;
-      if (riskPerShare > 0) {
-        shares = Math.floor(maxRiskDollar / riskPerShare);
+      if (validInputs && stopPrice >= price) {
+        warnBox.innerText = '止損價必須低於現價（做多倉位），請檢查輸入。';
+        warnBox.style.display = 'block';
       }
 
-      const cost = shares * price;
-      const actualLoss = shares * riskPerShare;
-      const stopDistPct = price > 0 ? ((price - stopPrice) / price) * 100 : 0;
+      let shares = 0, cost = 0, actualLoss = 0, stopDistPct = 0, riskPerShare = 0;
 
-      document.getElementById('res-shares').innerText = shares.toLocaleString() + ' 股';
-      document.getElementById('res-maxloss').innerText = '$' + actualLoss.toFixed(2);
-      document.getElementById('res-cost').innerText = '$' + cost.toFixed(2);
-      document.getElementById('res-stopdist').innerText = stopDistPct.toFixed(2) + '% ($' + riskPerShare.toFixed(2) + ')';
+      if (validInputs && stopPrice < price) {
+        riskPerShare = price - stopPrice;
+        const maxRiskDollar = capital * (riskPct / 100);
+        shares = riskPerShare > 0 ? Math.floor(maxRiskDollar / riskPerShare) : 0;
+        cost = shares * price;
+        actualLoss = shares * riskPerShare + (shares > 0 ? commission : 0);
+        stopDistPct = ((price - stopPrice) / price) * 100;
 
-      const highDist = price > 0 ? ((periodHigh - price) / price) * 100 : 0;
-      const lowDist = price > 0 ? ((periodLow - price) / price) * 100 : 0;
-      document.getElementById('res-high-dist').innerText = (highDist >= 0 ? '+' : '') + highDist.toFixed(2) + '%';
-      document.getElementById('res-low-dist').innerText = (lowDist >= 0 ? '+' : '') + lowDist.toFixed(2) + '%';
+        if (shares === 0 && maxRiskDollar > 0) {
+          warnBox.innerText = '以目前風險金額及止損距離，不足以買入 1 股，可調高風險%或縮窄止損距離。';
+          warnBox.style.display = 'block';
+        }
+      }
 
-      const targetPlus = price * (1 + customPct);
-      const targetMinus = price * (1 - customPct);
-      document.getElementById('res-target-plus').innerText = '$' + targetPlus.toFixed(2);
-      document.getElementById('res-target-minus').innerText = '$' + targetMinus.toFixed(2);
+      document.getElementById('res-shares').innerText = (validInputs ? shares.toLocaleString() : '--') + ' 股';
+      document.getElementById('res-maxloss').innerText = validInputs ? fmtMoney(actualLoss) : '--';
+      document.getElementById('res-cost').innerText = validInputs ? fmtMoney(cost) : '--';
+      document.getElementById('res-stopdist').innerText = validInputs
+        ? stopDistPct.toFixed(2) + '% (' + fmtMoney(riskPerShare) + ')'
+        : '--';
 
-      const customLoss = shares * (price - targetMinus);
-      document.getElementById('res-custom-loss').innerText = '$' + customLoss.toFixed(2);
+      window.lastCalc = { shares: shares, riskPerShare: riskPerShare, price: price, stopPrice: stopPrice, validInputs: validInputs };
 
-      const rValue = stopDistPct !== 0 ? (customPct * 100) / stopDistPct : 0;
-      document.getElementById('res-r-value').innerText = rValue.toFixed(2) + ' R';
+      // 期間高低距離（選填，留空則顯示 --）
+      const periodHigh = parseFloat(periodHighRaw);
+      const periodLow = parseFloat(periodLowRaw);
+      if (priceValid && periodHighRaw !== '' && isFinite(periodHigh) && periodHigh > 0) {
+        const highDist = ((periodHigh - price) / price) * 100;
+        document.getElementById('res-high-dist').innerText = fmtPct(highDist);
+      } else {
+        document.getElementById('res-high-dist').innerText = '--';
+      }
+      if (priceValid && periodLowRaw !== '' && isFinite(periodLow) && periodLow > 0) {
+        const lowDist = ((periodLow - price) / price) * 100;
+        document.getElementById('res-low-dist').innerText = fmtPct(lowDist);
+      } else {
+        document.getElementById('res-low-dist').innerText = '--';
+      }
+
+      // 快速目標與情境
+      if (priceValid && isFinite(customPct) && customPct > 0) {
+        const targetPlus = price * (1 + customPct / 100);
+        const targetMinus = price * (1 - customPct / 100);
+        document.getElementById('res-target-plus').innerText = fmtMoney(targetPlus);
+        document.getElementById('res-target-minus').innerText = fmtMoney(targetMinus);
+
+        const customLoss = validInputs ? shares * (price - targetMinus) : NaN;
+        document.getElementById('res-custom-loss').innerText = validInputs ? fmtMoney(customLoss) : '--';
+
+        const rValue = (validInputs && stopDistPct !== 0) ? (customPct / stopDistPct) : NaN;
+        document.getElementById('res-r-value').innerText = isFinite(rValue) ? rValue.toFixed(2) + ' R' : '--';
+      } else {
+        document.getElementById('res-target-plus').innerText = '--';
+        document.getElementById('res-target-minus').innerText = '--';
+        document.getElementById('res-custom-loss').innerText = '--';
+        document.getElementById('res-r-value').innerText = '--';
+      }
+
+      // R 倍數獲利目標
+      if (validInputs && riskPerShare > 0) {
+        document.getElementById('res-r1').innerText = fmtMoney(price + riskPerShare * 1);
+        document.getElementById('res-r2').innerText = fmtMoney(price + riskPerShare * 2);
+        document.getElementById('res-r3').innerText = fmtMoney(price + riskPerShare * 3);
+      } else {
+        document.getElementById('res-r1').innerText = '--';
+        document.getElementById('res-r2').innerText = '--';
+        document.getElementById('res-r3').innerText = '--';
+      }
     }
 
     function calcReverse() {
-      const price = parseFloat(document.getElementById('rev-price').value) || 0;
-      const shares = parseFloat(document.getElementById('rev-shares').value) || 0;
-      const maxLoss = parseFloat(document.getElementById('rev-loss').value) || 0;
+      const warnBox = document.getElementById('reverse-warn');
+      warnBox.style.display = 'none';
+      warnBox.innerText = '';
 
-      if (shares > 0 && price > 0) {
-        const riskPerShare = maxLoss / shares;
-        const stopPrice = Math.max(0, price - riskPerShare);
-        const stopPct = (riskPerShare / price) * 100;
-        const totalCost = shares * price;
+      const price = parseFloat(document.getElementById('rev-price').value);
+      const shares = parseFloat(document.getElementById('rev-shares').value);
+      const maxLoss = parseFloat(document.getElementById('rev-loss').value);
 
-        document.getElementById('rev-res-price').innerText = '$' + stopPrice.toFixed(3);
-        document.getElementById('rev-res-pct').innerText = '-' + stopPct.toFixed(2) + '%';
-        document.getElementById('rev-res-per-share').innerText = '$' + riskPerShare.toFixed(3);
-        document.getElementById('rev-res-cost').innerText = '$' + totalCost.toFixed(2);
+      const valid = isFinite(price) && price > 0 && isFinite(shares) && shares > 0 && isFinite(maxLoss) && maxLoss >= 0;
+
+      if (!valid) {
+        warnBox.innerText = '請輸入大於 0 的現價與股數，及不小於 0 的最大虧損總額。';
+        warnBox.style.display = 'block';
+        document.getElementById('rev-res-price').innerText = '--';
+        document.getElementById('rev-res-pct').innerText = '--';
+        document.getElementById('rev-res-per-share').innerText = '--';
+        document.getElementById('rev-res-cost').innerText = '--';
+        return;
+      }
+
+      const riskPerShare = maxLoss / shares;
+      const stopPrice = Math.max(0, price - riskPerShare);
+      const stopPct = (riskPerShare / price) * 100;
+      const totalCost = shares * price;
+
+      if (riskPerShare >= price) {
+        warnBox.innerText = '注意：允許虧損金額換算每股風險已超過現價，止損價會被限制在 $0。';
+        warnBox.style.display = 'block';
+      }
+
+      document.getElementById('rev-res-price').innerText = '$' + stopPrice.toFixed(3);
+      document.getElementById('rev-res-pct').innerText = '-' + stopPct.toFixed(2) + '%';
+      document.getElementById('rev-res-per-share').innerText = '$' + riskPerShare.toFixed(3);
+      document.getElementById('rev-res-cost').innerText = fmtMoney(totalCost);
+    }
+
+    // ---------- 大盤 / 概念成分股比較 ----------
+    document.getElementById('cmp-benchmark').addEventListener('change', function () {
+      document.getElementById('cmp-custom-bm-group').style.display = this.value === 'CUSTOM' ? 'block' : 'none';
+    });
+
+    function stooqSymbol(t) {
+      t = t.trim().toUpperCase();
+      if (t === '') return null;
+      if (t.includes('.')) return t.toLowerCase();
+      return t.toLowerCase() + '.us';
+    }
+
+    async function fetchStooqQuote(ticker) {
+      const sym = stooqSymbol(ticker);
+      if (!sym) return null;
+      const url = 'https://stooq.com/q/l/?s=' + encodeURIComponent(sym) + '&f=sd2t2ohlcvn&h&e=csv';
+      const resp = await fetch(url, { cache: 'no-store' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const text = await resp.text();
+      const lines = text.trim().split('\n');
+      if (lines.length < 2) return null;
+      const headers = lines[0].split(',');
+      const values = lines[1].split(',');
+      const row = {};
+      headers.forEach((h, i) => row[h.trim()] = values[i]);
+      const close = parseFloat(row['Close']);
+      const open = parseFloat(row['Open']);
+      if (!isFinite(close) || close <= 0 || row['Close'] === 'N/D') return null;
+      const pctChange = isFinite(open) && open > 0 ? ((close - open) / open) * 100 : NaN;
+      return { ticker: ticker.toUpperCase(), close: close, pctChange: pctChange, date: row['Date'], time: row['Time'] };
+    }
+
+    async function fetchComparison() {
+      const warnBox = document.getElementById('cmp-warn');
+      warnBox.style.display = 'none';
+      warnBox.innerText = '';
+      document.getElementById('cmp-result-wrap').innerHTML = '<div class="note">正在抓取報價...</div>';
+
+      const stocksRaw = document.getElementById('cmp-stocks').value;
+      const tickers = stocksRaw.split(',').map(s => s.trim()).filter(s => s !== '');
+      const bmSelect = document.getElementById('cmp-benchmark').value;
+      const benchmarkTicker = bmSelect === 'CUSTOM'
+        ? (document.getElementById('cmp-custom-bm').value.trim() || 'SPY')
+        : bmSelect;
+
+      if (tickers.length === 0) {
+        warnBox.innerText = '請至少輸入一個股票代號。';
+        warnBox.style.display = 'block';
+        document.getElementById('cmp-result-wrap').innerHTML = '';
+        return;
+      }
+
+      try {
+        const bmQuote = await fetchStooqQuote(benchmarkTicker);
+        if (!bmQuote) throw new Error('無法取得基準報價');
+
+        const results = [];
+        for (const t of tickers) {
+          try {
+            const q = await fetchStooqQuote(t);
+            if (q) results.push(q);
+          } catch (e) {
+            // 個別股票抓取失敗時跳過，不中斷整體流程
+          }
+        }
+
+        if (results.length === 0) throw new Error('沒有任何股票報價成功');
+
+        let html = '<table class="cmp-table"><thead><tr><th>代號</th><th>現價</th><th>今日%</th><th>相對' + benchmarkTicker.toUpperCase() + '</th></tr></thead><tbody>';
+        html += '<tr style="opacity:0.75;"><td>' + benchmarkTicker.toUpperCase() + ' (基準)</td><td>$' + bmQuote.close.toFixed(2) + '</td><td>' + fmtPct(bmQuote.pctChange) + '</td><td>--</td></tr>';
+        results.sort((a, b) => (b.pctChange || -999) - (a.pctChange || -999));
+        results.forEach(r => {
+          const rel = isFinite(r.pctChange) && isFinite(bmQuote.pctChange) ? r.pctChange - bmQuote.pctChange : NaN;
+          const pillClass = isFinite(rel) ? (rel >= 0 ? 'pill-green' : 'pill-red') : '';
+          html += '<tr><td>' + r.ticker + '</td><td>$' + r.close.toFixed(2) + '</td><td>' + fmtPct(r.pctChange) + '</td>' +
+            '<td><span class="pill ' + pillClass + '">' + (isFinite(rel) ? fmtPct(rel) : '--') + '</span></td></tr>';
+        });
+        html += '</tbody></table>';
+        document.getElementById('cmp-result-wrap').innerHTML = html;
+
+        const now = new Date();
+        document.getElementById('cmp-timestamp').innerText = '抓取時間: ' + now.toLocaleString() + '（來源報價本身可能已有延遲，僅供參考，非交易依據）';
+      } catch (err) {
+        document.getElementById('cmp-result-wrap').innerHTML = '';
+        warnBox.innerText = '自動抓取失敗（可能是網絡或瀏覽器跨網域限制）。請改用下方「手動輸入模式」。錯誤: ' + err.message;
+        warnBox.style.display = 'block';
       }
     }
 
+    function addManualRow() {
+      const wrap = document.getElementById('cmp-manual-rows');
+      const row = document.createElement('div');
+      row.className = 'grid-3 cmp-manual-row';
+      row.style.marginBottom = '8px';
+      row.innerHTML = '<input type="text" class="cmp-manual-name" placeholder="名稱/代號">' +
+        '<input type="number" inputmode="decimal" step="0.01" class="cmp-manual-pct" value="0" placeholder="今日 % 變動">' +
+        '<button class="btn btn-secondary" style="margin:0;padding:6px;" onclick="this.closest(\'.cmp-manual-row\').remove()">刪除</button>';
+      wrap.appendChild(row);
+    }
+
+    function calcManualCompare() {
+      const bmPct = parseFloat(document.getElementById('cmp-manual-bm').value) || 0;
+      const rows = document.querySelectorAll('.cmp-manual-row');
+      let html = '<table class="cmp-table"><thead><tr><th>名稱/代號</th><th>今日%</th><th>相對基準</th></tr></thead><tbody>';
+      html += '<tr style="opacity:0.75;"><td>基準</td><td>' + fmtPct(bmPct) + '</td><td>--</td></tr>';
+      rows.forEach(row => {
+        const name = row.querySelector('.cmp-manual-name').value.trim() || '未命名';
+        const pct = parseFloat(row.querySelector('.cmp-manual-pct').value);
+        if (!isFinite(pct)) return;
+        const rel = pct - bmPct;
+        const pillClass = rel >= 0 ? 'pill-green' : 'pill-red';
+        html += '<tr><td>' + name + '</td><td>' + fmtPct(pct) + '</td><td><span class="pill ' + pillClass + '">' + fmtPct(rel) + '</span></td></tr>';
+      });
+      html += '</tbody></table>';
+      document.getElementById('cmp-manual-result-wrap').innerHTML = html;
+    }
+
     calcForward();
+    calcReverse();
   </script>
 </body>
 </html>
