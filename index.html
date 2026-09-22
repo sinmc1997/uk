@@ -67,7 +67,8 @@
 
   <div class="header">
     <h1>美股倉位與風險計算機</h1>
-    <div class="sub">v2 · 支援大盤 / 概念成分股比較（報價可延遲，僅供參考）</div>
+    <div class="sub">v3 · Yahoo/Stooq 雙來源比較 · 自訂 R 倍數 · 自動記住上次輸入</div>
+    <div style="margin-top:8px;"><span onclick="resetDefaults()" style="font-size:0.7rem;color:var(--text-dim);text-decoration:underline;cursor:pointer;">重置所有輸入為預設值</span></div>
   </div>
 
   <div class="tabs">
@@ -219,22 +220,19 @@
     </div>
 
     <div class="card">
-      <div class="card-title">6. R 倍數獲利目標</div>
-      <div class="grid-3">
-        <div class="result-box">
-          <div class="result-label">1R 目標價</div>
-          <div class="result-val val-green" id="res-r1">$0.00</div>
-        </div>
-        <div class="result-box">
-          <div class="result-label">2R 目標價</div>
-          <div class="result-val val-green" id="res-r2">$0.00</div>
-        </div>
-        <div class="result-box">
-          <div class="result-label">3R 目標價</div>
-          <div class="result-val val-green" id="res-r3">$0.00</div>
+      <div class="card-title">6. R 倍數獲利目標（可自訂多少 R）</div>
+      <div class="form-group">
+        <label class="form-label">自訂 R 倍數（逗號分隔，可小數，例如 1,2,3,4.5）</label>
+        <input type="text" id="customRList" value="1,2,3" oninput="calcForward()">
+        <div class="badge-group">
+          <span class="badge" onclick="setRList('1,2,3')">1,2,3</span>
+          <span class="badge" onclick="setRList('0.5,1,1.5,2')">0.5,1,1.5,2</span>
+          <span class="badge" onclick="setRList('1,2,3,5,8')">1,2,3,5,8</span>
+          <span class="badge" onclick="setRList('2')">只要2R</span>
         </div>
       </div>
-      <div class="note">R = 每股風險（現價 − 止損價）。1R/2R/3R 為以風險倍數計算的獲利目標價，方便設定止盈。</div>
+      <div id="r-target-table-wrap"></div>
+      <div class="note">R = 每股風險（現價 − 止損價）。上面可自行輸入任何 R 倍數（例如想睇 4R、6.5R 都得），系統會自動算出對應目標價、距現價%，以及以你設定股數計算嘅預計盈利。</div>
     </div>
   </div>
 
@@ -293,8 +291,16 @@
   <div id="tab-compare" style="display:none;">
     <div class="card">
       <div class="card-title">1. 自動抓取比較（免費報價，非即時）</div>
-      <div class="note">使用 Stooq 免費報價來源，不需 API Key。一般延遲數分鐘至最多約1小時，適合非高頻對比用途。若你的網絡/瀏覽器封鎖跨網域請求，請改用下方「手動輸入模式」。</div>
+      <div class="note">預設會先試 Yahoo Finance，失敗自動轉用 Stooq；兩個都唔需要 API Key。一般延遲數分鐘至最多約1小時，適合非高頻對比用途。若你的網絡/瀏覽器封鎖跨網域請求，請改用下方「手動輸入模式」。</div>
       <div class="form-group" style="margin-top:10px;">
+        <label class="form-label">資料來源</label>
+        <select id="cmp-source">
+          <option value="auto">自動（Yahoo優先，失敗轉Stooq）</option>
+          <option value="yahoo">只用 Yahoo Finance</option>
+          <option value="stooq">只用 Stooq</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label class="form-label">你持有/關注的股票（可用逗號分隔多個，即概念成分股）</label>
         <input type="text" id="cmp-stocks" value="JPM" placeholder="例如: JPM, BAC, GS, MS">
       </div>
@@ -386,6 +392,34 @@
     function setCustomPct(val) {
       document.getElementById('customPct').value = val;
       calcForward();
+    }
+
+    function setRList(val) {
+      document.getElementById('customRList').value = val;
+      calcForward();
+    }
+
+    function renderRTargets(validInputs, price, riskPerShare, shares) {
+      const wrap = document.getElementById('r-target-table-wrap');
+      if (!validInputs || !(riskPerShare > 0)) {
+        wrap.innerHTML = '<div class="note">請先完成上方「止損設定」，先計到每股風險 (R)。</div>';
+        return;
+      }
+      const raw = document.getElementById('customRList').value || '';
+      const rVals = raw.split(',').map(s => parseFloat(s.trim())).filter(v => isFinite(v) && v > 0);
+      if (rVals.length === 0) {
+        wrap.innerHTML = '<div class="note">請輸入至少一個有效 R 倍數，例如 1,2,3。</div>';
+        return;
+      }
+      let html = '<table class="cmp-table"><thead><tr><th>R 倍數</th><th>目標價</th><th>距現價%</th><th>預計盈利</th></tr></thead><tbody>';
+      rVals.forEach(r => {
+        const target = price + riskPerShare * r;
+        const pctGain = ((target - price) / price) * 100;
+        const profit = shares > 0 ? shares * riskPerShare * r : NaN;
+        html += '<tr><td>' + r + 'R</td><td>' + fmtMoney(target) + '</td><td>' + fmtPct(pctGain) + '</td><td>' + (isFinite(profit) ? fmtMoney(profit) : '--') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      wrap.innerHTML = html;
     }
 
     function setRevLoss(val) {
@@ -511,15 +545,7 @@
       }
 
       // R 倍數獲利目標
-      if (validInputs && riskPerShare > 0) {
-        document.getElementById('res-r1').innerText = fmtMoney(price + riskPerShare * 1);
-        document.getElementById('res-r2').innerText = fmtMoney(price + riskPerShare * 2);
-        document.getElementById('res-r3').innerText = fmtMoney(price + riskPerShare * 3);
-      } else {
-        document.getElementById('res-r1').innerText = '--';
-        document.getElementById('res-r2').innerText = '--';
-        document.getElementById('res-r3').innerText = '--';
-      }
+      renderRTargets(validInputs, price, riskPerShare, shares);
     }
 
     function calcReverse() {
@@ -588,7 +614,36 @@
       const open = parseFloat(row['Open']);
       if (!isFinite(close) || close <= 0 || row['Close'] === 'N/D') return null;
       const pctChange = isFinite(open) && open > 0 ? ((close - open) / open) * 100 : NaN;
-      return { ticker: ticker.toUpperCase(), close: close, pctChange: pctChange, date: row['Date'], time: row['Time'] };
+      return { ticker: ticker.toUpperCase(), close: close, pctChange: pctChange, date: row['Date'], time: row['Time'], source: 'Stooq' };
+    }
+
+    async function fetchYahooQuote(ticker) {
+      const sym = ticker.trim().toUpperCase();
+      if (!sym) return null;
+      const yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?interval=1d&range=1d';
+      const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(yahooUrl);
+      const resp = await fetch(proxyUrl, { cache: 'no-store' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      const result = data && data.chart && data.chart.result && data.chart.result[0];
+      const meta = result && result.meta;
+      if (!meta || !isFinite(meta.regularMarketPrice)) return null;
+      const close = meta.regularMarketPrice;
+      const prevClose = meta.chartPreviousClose || meta.previousClose;
+      const pctChange = isFinite(prevClose) && prevClose > 0 ? ((close - prevClose) / prevClose) * 100 : NaN;
+      const marketTime = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000) : null;
+      return { ticker: sym, close: close, pctChange: pctChange, date: marketTime ? marketTime.toLocaleDateString() : '', time: marketTime ? marketTime.toLocaleTimeString() : '', source: 'Yahoo' };
+    }
+
+    async function fetchQuote(ticker, source) {
+      if (source === 'yahoo') return await fetchYahooQuote(ticker);
+      if (source === 'stooq') return await fetchStooqQuote(ticker);
+      // auto: 先試 Yahoo，失敗自動轉 Stooq
+      try {
+        const y = await fetchYahooQuote(ticker);
+        if (y) return y;
+      } catch (e) { /* 轉用 Stooq */ }
+      return await fetchStooqQuote(ticker);
     }
 
     async function fetchComparison() {
@@ -611,14 +666,16 @@
         return;
       }
 
+      const source = document.getElementById('cmp-source').value;
+
       try {
-        const bmQuote = await fetchStooqQuote(benchmarkTicker);
+        const bmQuote = await fetchQuote(benchmarkTicker, source);
         if (!bmQuote) throw new Error('無法取得基準報價');
 
         const results = [];
         for (const t of tickers) {
           try {
-            const q = await fetchStooqQuote(t);
+            const q = await fetchQuote(t, source);
             if (q) results.push(q);
           } catch (e) {
             // 個別股票抓取失敗時跳過，不中斷整體流程
@@ -633,17 +690,17 @@
         results.forEach(r => {
           const rel = isFinite(r.pctChange) && isFinite(bmQuote.pctChange) ? r.pctChange - bmQuote.pctChange : NaN;
           const pillClass = isFinite(rel) ? (rel >= 0 ? 'pill-green' : 'pill-red') : '';
-          html += '<tr><td>' + r.ticker + '</td><td>$' + r.close.toFixed(2) + '</td><td>' + fmtPct(r.pctChange) + '</td>' +
+          html += '<tr><td>' + r.ticker + ' <span style="opacity:0.5;font-size:0.65rem;">(' + r.source + ')</span></td><td>$' + r.close.toFixed(2) + '</td><td>' + fmtPct(r.pctChange) + '</td>' +
             '<td><span class="pill ' + pillClass + '">' + (isFinite(rel) ? fmtPct(rel) : '--') + '</span></td></tr>';
         });
         html += '</tbody></table>';
         document.getElementById('cmp-result-wrap').innerHTML = html;
 
         const now = new Date();
-        document.getElementById('cmp-timestamp').innerText = '抓取時間: ' + now.toLocaleString() + '（來源報價本身可能已有延遲，僅供參考，非交易依據）';
+        document.getElementById('cmp-timestamp').innerText = '抓取時間: ' + now.toLocaleString() + '（基準來源: ' + bmQuote.source + '，報價本身可能已有延遲，僅供參考，非交易依據）';
       } catch (err) {
         document.getElementById('cmp-result-wrap').innerHTML = '';
-        warnBox.innerText = '自動抓取失敗（可能是網絡或瀏覽器跨網域限制）。請改用下方「手動輸入模式」。錯誤: ' + err.message;
+        warnBox.innerText = '自動抓取失敗（可能是網絡、瀏覽器跨網域限制，或該資料來源暫時無回應）。可嘗試切換「資料來源」再試一次，或改用下方「手動輸入模式」。錯誤: ' + err.message;
         warnBox.style.display = 'block';
       }
     }
@@ -676,8 +733,46 @@
       document.getElementById('cmp-manual-result-wrap').innerHTML = html;
     }
 
+    const PERSIST_IDS = ['symbol','price','capital','riskPct','commission','periodHigh','periodLow',
+      'stopMode','stopPrice','stopPctInput','customPct','customRList',
+      'rev-price','rev-shares','rev-loss','cmp-stocks','cmp-benchmark','cmp-source'];
+
+    function saveState() {
+      try {
+        const state = {};
+        PERSIST_IDS.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) state[id] = el.value;
+        });
+        localStorage.setItem('usStockCalcState_v2', JSON.stringify(state));
+      } catch (e) { /* localStorage 不可用時忽略 */ }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem('usStockCalcState_v2');
+        if (!raw) return;
+        const state = JSON.parse(raw);
+        PERSIST_IDS.forEach(id => {
+          const el = document.getElementById(id);
+          if (el && state[id] !== undefined && state[id] !== '') el.value = state[id];
+        });
+        toggleStopMode();
+        const bmSel = document.getElementById('cmp-benchmark');
+        if (bmSel) document.getElementById('cmp-custom-bm-group').style.display = bmSel.value === 'CUSTOM' ? 'block' : 'none';
+      } catch (e) { /* 忽略損壞的儲存資料 */ }
+    }
+
+    function resetDefaults() {
+      try { localStorage.removeItem('usStockCalcState_v2'); } catch (e) {}
+      location.reload();
+    }
+
+    loadState();
     calcForward();
     calcReverse();
+    document.body.addEventListener('input', saveState);
+    document.body.addEventListener('change', saveState);
   </script>
 </body>
 </html>
