@@ -218,6 +218,19 @@
           <input type="number" inputmode="decimal" step="0.01" min="0" id="commission" value="0" oninput="calcForward()">
         </div>
       </div>
+      <details class="settings" id="data-settings">
+        <summary>🔌 數據來源設定 <span class="pill pill-gray" id="proxy-pill">未設定</span></summary>
+        <div class="form-group" style="margin-top:8px;">
+          <label class="form-label">Cloudflare Worker 代理網址（留空 = 用內置預設）</label>
+          <input type="url" id="proxy-url" placeholder="https://uk-proxy.你的帳戶.workers.dev" autocapitalize="off" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-sm" onclick="saveProxyUrl()">儲存並測試</button>
+          <button class="btn btn-sm btn-secondary" onclick="$('proxy-url').value='';saveProxyUrl();">還原預設</button>
+        </div>
+        <div class="note" id="proxy-status"></div>
+        <div class="note">Yahoo 唔俾網頁直接讀取，所以報價經你自己嘅 Cloudflare Worker 讀取（免費，每日 10 萬次）。已內置 uk-proxy.sinmc1999.workers.dev，任何裝置打開就用得，唔使設定。想換另一個代理先需要改呢度（建立方法見 repo 嘅 <b>cloudflare-worker/README.md</b>）。</div>
+      </details>
       <details class="settings">
         <summary>⚙ 賬戶級風控上限（撳開設定）</summary>
         <div class="grid-2" style="margin-top:8px;">
@@ -723,17 +736,20 @@
     }
 
     // =====================================================================
-    // 數據層：歷史日線（Yahoo → Stooq），經 CORS 代理，記住最快嗰個
+    // 數據層：歷史日線（Yahoo → Stooq）
+    // 優先用你自己嘅 Cloudflare Worker；冇設定先試公開代理（好唔穩定）
     // =====================================================================
+    const PROXY_KEY = 'usCalc_proxyUrl';
+    // 內置預設代理（你自己嘅 Cloudflare Worker）；設定欄填咗其他網址就會用嗰個
+    const DEFAULT_PROXY = 'https://uk-proxy.sinmc1999.workers.dev';
     const PROXIES = [
       (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
-      (u) => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
       (u) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u)
     ];
-    let proxyOrder = (function () {
-      const o = lsGet('usCalc_proxyOrder', null);
-      return Array.isArray(o) && o.length === PROXIES.length ? o : PROXIES.map((_, i) => i);
-    })();
+
+    function getProxyUrl() { return (String(lsGet(PROXY_KEY, '') || '').trim() || DEFAULT_PROXY).replace(/\/+$/, ''); }
+    function usingDefaultProxy() { return !String(lsGet(PROXY_KEY, '') || '').trim(); }
+    function errText(e) { return e && e.name === 'AbortError' ? '逾時' : (e && e.message) || String(e); }
 
     async function fetchWithTimeout(url, ms) {
       const ctl = new AbortController();
@@ -745,21 +761,97 @@
       } finally { clearTimeout(timer); }
     }
 
-    async function fetchParsed(url, parse, tryDirect) {
+    async function fetchParsed(url, parse) {
       const errs = [];
-      if (tryDirect) {
-        try { return parse(await fetchWithTimeout(url, 8000)); }
-        catch (e) { errs.push('直連 ' + (e.name === 'AbortError' ? '逾時' : e.message)); }
+      const own = getProxyUrl();
+      if (own) {
+        try { return parse(await fetchWithTimeout(own + '/?url=' + encodeURIComponent(url), 15000)); }
+        catch (e) { errs.push('你嘅代理：' + errText(e)); }
       }
-      for (const i of proxyOrder.slice()) {
-        try {
-          const out = parse(await fetchWithTimeout(PROXIES[i](url), 12000));
-          if (proxyOrder[0] !== i) { proxyOrder = [i].concat(proxyOrder.filter((x) => x !== i)); lsSet('usCalc_proxyOrder', proxyOrder); }
-          return out;
-        } catch (e) { errs.push('代理' + (i + 1) + ' ' + (e.name === 'AbortError' ? '逾時' : e.message)); }
-      }
+      try {
+        return await Promise.any(PROXIES.map((mk) => fetchWithTimeout(mk(url), 7000).then(parse)));
+      } catch (e) { errs.push('公開代理全部失敗'); }
       throw new Error(errs.join('；'));
     }
+
+    function proxyHelpHtml() {
+      return getProxyUrl() ? '' : '<br><span class="val-yellow">未設定數據代理。</span><span class="sym-link" onclick="openDataSettings()">撳呢度設定 Cloudflare Worker</span>';
+    }
+
+    function openDataSettings() {
+      switchTab('forward');
+      const d = $('data-settings');
+      d.open = true;
+      d.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function renderProxyPill(state) {
+      const pill = $('proxy-pill');
+      const url = getProxyUrl();
+      if (state === 'ok') { pill.className = 'pill pill-green'; pill.textContent = '已連線'; }
+      else if (state === 'fail') { pill.className = 'pill pill-red'; pill.textContent = '連線失敗'; }
+      else { pill.className = 'pill ' + (url ? 'pill-blue' : 'pill-yellow'); pill.textContent = url ? (usingDefaultProxy() ? '內置預設' : '自訂') : '未設定'; }
+    }
+
+    async function testProxy() {
+      const url = getProxyUrl();
+      const st = $('proxy-status');
+      if (!url) { st.innerHTML = ''; renderProxyPill(); return false; }
+      st.textContent = '測試緊 ' + url + ' …';
+      try {
+        const h = JSON.parse(await fetchWithTimeout(url + '/', 10000));
+        if (!h.ok) throw new Error('唔係呢個 app 嘅代理');
+      } catch (e) {
+        st.innerHTML = '<span class="val-red">✗ 連唔到代理：' + esc(errText(e)) + '</span>（檢查網址有冇打錯、Worker 有冇 Deploy）';
+        renderProxyPill('fail');
+        return false;
+      }
+      try {
+        const txt = await fetchWithTimeout(url + '/?url=' + encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/SPY?range=5d&interval=1d'), 15000);
+        const d = parseYahoo(txt);
+        st.innerHTML = '<span class="val-green">✓ 代理正常，Yahoo 數據讀到（SPY ' + fmtPrice(d.price) + '）。</span>';
+        renderProxyPill('ok');
+        return true;
+      } catch (e) {
+        st.innerHTML = '<span class="val-yellow">代理有回應，但讀唔到 Yahoo 數據：' + esc(errText(e)) + '</span>。如果係 HTTP 403 "origin not allowed"，請喺 worker.js 嘅 ALLOWED_ORIGINS 加入 ' + esc(location.origin) + '。';
+        renderProxyPill('fail');
+        return false;
+      }
+    }
+
+    async function saveProxyUrl() {
+      let v = ($('proxy-url').value || '').trim().replace(/\/+$/, '');
+      if (v === DEFAULT_PROXY) v = '';
+      if (v && !/^https?:\/\//i.test(v)) v = 'https://' + v;
+      if (v && !/^https:\/\/[^\s/]+(\/[^\s]*)?$/i.test(v)) { toast('網址格式唔啱', 'err'); return; }
+      lsSet(PROXY_KEY, v);
+      $('proxy-url').value = getProxyUrl();
+      Object.keys(histCache).forEach((k) => delete histCache[k]);
+      renderProxyPill();
+      const ok = await testProxy();
+      if (ok) toast('數據代理已設定好');
+    }
+
+    async function copySetupLink() {
+      const v = getProxyUrl();
+      if (!v) { toast('請先儲存代理網址', 'err'); return; }
+      const link = location.origin + location.pathname + '?proxy=' + encodeURIComponent(v);
+      try { await navigator.clipboard.writeText(link); toast('已複製，喺手機打開呢條連結就會自動設定'); }
+      catch (e) { $('proxy-status').innerHTML = '請手動複製：<br><span style="user-select:all;word-break:break-all;">' + esc(link) + '</span>'; }
+    }
+
+    // 由連結 ?proxy=... 自動設定（方便喺手機一撳完成）
+    (function applyProxyFromUrl() {
+      try {
+        const qs = new URLSearchParams(location.search);
+        const v = qs.get('proxy');
+        if (!v || !/^https:\/\//i.test(v)) return;
+        lsSet(PROXY_KEY, v.trim().replace(/\/+$/, ''));
+        window.__proxyFromLink = true;
+        qs.delete('proxy');
+        history.replaceState(null, '', location.pathname + (qs.toString() ? '?' + qs : '') + location.hash);
+      } catch (e) { /* 忽略 */ }
+    })();
 
     function parseYahoo(txt) {
       const j = JSON.parse(txt);
@@ -815,12 +907,12 @@
       const errs = [];
       if (source !== 'stooq') {
         try {
-          data = await fetchParsed('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?range=2y&interval=1d&includePrePost=false', parseYahoo, false);
+          data = await fetchParsed('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?range=2y&interval=1d&includePrePost=false', parseYahoo);
         } catch (e) { errs.push('Yahoo：' + e.message); }
       }
       if (!data && source !== 'yahoo') {
         try {
-          data = await fetchParsed('https://stooq.com/q/d/l/?s=' + encodeURIComponent(stooqSymbol(sym)) + '&i=d', parseStooq, true);
+          data = await fetchParsed('https://stooq.com/q/d/l/?s=' + encodeURIComponent(stooqSymbol(sym)) + '&i=d', parseStooq);
         } catch (e) { errs.push('Stooq：' + e.message); }
       }
       if (!data) throw new Error(sym + ' 抓取失敗（' + errs.join(' | ') + '）');
@@ -979,7 +1071,7 @@
           const q = (j.quotes || []).find((x) => String(x.symbol || '').toUpperCase() === sym);
           if (!q) throw new Error('搵唔到 ' + sym);
           return { name: q.longname || q.shortname || sym, sector: q.sectorDisp || q.sector || '', industry: q.industryDisp || q.industry || '', exch: q.exchDisp || q.exchange || '', type: q.quoteType || '' };
-        }, false);
+        });
         Object.assign(p, info);
         cache[sym] = p;
         lsSet('usCalc_profiles', cache);
@@ -1119,7 +1211,7 @@
         renderChart();
         saveState();
       } catch (e) {
-        $('fetch-status').innerHTML = '<span class="val-red">抓取失敗：</span>' + esc(e.message) + '<br>可以喺「自選 / 比較」分頁切換資料來源再試，或者手動輸入。';
+        $('fetch-status').innerHTML = '<span class="val-red">抓取失敗：</span>' + esc(e.message) + (getProxyUrl() ? '<br>可以撳「🔌 數據來源設定」測試代理，或者手動輸入。' : proxyHelpHtml());
       } finally {
         btn.disabled = false;
       }
@@ -2393,7 +2485,7 @@
       lsSet('usCalc_wlSnap_v1', wlSnap);
       btn.disabled = false;
       if (!rows.length) {
-        warnBox.innerHTML = '全部抓取失敗（可能係網絡、代理服務或者資料來源暫時無回應）。可以切換「資料來源」再試，或用下面手動模式。<br>' + esc(failed.join(', '));
+        warnBox.innerHTML = '全部抓取失敗（可能係網絡、代理服務或者資料來源暫時無回應）。可以切換「資料來源」再試，或用下面手動模式。<br>' + esc(failed.join(', ')) + proxyHelpHtml();
         warnBox.style.display = 'block';
       } else if (failed.length) {
         warnBox.innerHTML = '以下抓取失敗：' + esc(failed.join(', '));
@@ -2531,6 +2623,15 @@
     // =====================================================================
     loadState();
     $('j-date').value = todayStr();
+    $('proxy-url').value = getProxyUrl();
+    renderProxyPill();
+    if (!getProxyUrl()) {
+      $('data-settings').open = true;
+      $('fetch-status').innerHTML = '撳「抓取數據」會自動填現價、期間高低、ATR、均線，並畫 K 線圖。<br><span class="val-yellow">⚠ 要先喺下面「🔌 數據來源設定」填你嘅 Cloudflare Worker 網址先抓到數據。</span>';
+    } else if (window.__proxyFromLink) {
+      $('data-settings').open = true;
+      testProxy().then((ok) => { if (ok) toast('已由連結設定好數據代理'); });
+    }
     document.querySelectorAll('#period-badges .badge').forEach((b) => b.classList.toggle('active', +b.dataset.period === periodSel));
     document.querySelectorAll('#range-badges .badge').forEach((b) => b.classList.toggle('active', +b.dataset.range === chartRange));
     toggleStopMode();
