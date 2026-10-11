@@ -1,5 +1,8 @@
 # 數據代理設定（Cloudflare Worker，免費）
 
+> ✅ 已部署：`https://uk-proxy.sinmc1999.workers.dev`，並已內置喺 app 做預設，任何裝置打開網站就用得。
+> 以下步驟只係喺你想重建或者換另一個 Worker 時先需要。
+
 Yahoo Finance 唔俾網頁直接讀取數據（CORS），免費公開代理亦已經全部失效，
 所以「抓取數據、K 線圖、自選清單、更新持倉現價」要經你自己嘅 Cloudflare Worker 讀取。
 
@@ -22,7 +25,8 @@ Yahoo Finance 唔俾網頁直接讀取數據（CORS），免費公開代理亦�
    （喺瀏覽器直接打開佢，見到 `{"ok":true,...}` 就代表成功。）
 7. 打開 <https://sinmc1997.github.io/uk/> → 正推分頁「🔌 數據來源設定」→ 貼上網址 → **儲存並測試**，
    見到「✓ 代理正常，Yahoo 數據讀到」就完成。
-8. 撳 **複製手機設定連結**，將條連結傳去手機打開一次，手機就會自動設定好（每部裝置/瀏覽器設定一次）。
+8. 想所有裝置都預設用新 Worker：改 `index.html` 入面嘅 `DEFAULT_PROXY`。
+   只想某部裝置用：喺嗰部裝置打開 `https://sinmc1997.github.io/uk/?proxy=<你的 Worker 網址>` 一次。
 
 ## 常見問題
 

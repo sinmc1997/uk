@@ -221,15 +221,15 @@
       <details class="settings" id="data-settings">
         <summary>🔌 數據來源設定 <span class="pill pill-gray" id="proxy-pill">未設定</span></summary>
         <div class="form-group" style="margin-top:8px;">
-          <label class="form-label">Cloudflare Worker 代理網址</label>
+          <label class="form-label">Cloudflare Worker 代理網址（留空 = 用內置預設）</label>
           <input type="url" id="proxy-url" placeholder="https://uk-proxy.你的帳戶.workers.dev" autocapitalize="off" autocomplete="off" spellcheck="false">
         </div>
         <div class="btn-row">
           <button class="btn btn-sm" onclick="saveProxyUrl()">儲存並測試</button>
-          <button class="btn btn-sm btn-secondary" onclick="copySetupLink()">複製手機設定連結</button>
+          <button class="btn btn-sm btn-secondary" onclick="$('proxy-url').value='';saveProxyUrl();">還原預設</button>
         </div>
         <div class="note" id="proxy-status"></div>
-        <div class="note">Yahoo 唔俾網頁直接讀取，免費公開代理亦已失效，所以要用你自己嘅 Cloudflare Worker（免費，每日 10 萬次）。建立方法睇 GitHub repo 嘅 <b>cloudflare-worker/README.md</b>。設定好之後撳「複製手機設定連結」，喺手機開一次就自動設定好。</div>
+        <div class="note">Yahoo 唔俾網頁直接讀取，所以報價經你自己嘅 Cloudflare Worker 讀取（免費，每日 10 萬次）。已內置 uk-proxy.sinmc1999.workers.dev，任何裝置打開就用得，唔使設定。想換另一個代理先需要改呢度（建立方法見 repo 嘅 <b>cloudflare-worker/README.md</b>）。</div>
       </details>
       <details class="settings">
         <summary>⚙ 賬戶級風控上限（撳開設定）</summary>
@@ -740,12 +740,15 @@
     // 優先用你自己嘅 Cloudflare Worker；冇設定先試公開代理（好唔穩定）
     // =====================================================================
     const PROXY_KEY = 'usCalc_proxyUrl';
+    // 內置預設代理（你自己嘅 Cloudflare Worker）；設定欄填咗其他網址就會用嗰個
+    const DEFAULT_PROXY = 'https://uk-proxy.sinmc1999.workers.dev';
     const PROXIES = [
       (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
       (u) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u)
     ];
 
-    function getProxyUrl() { return String(lsGet(PROXY_KEY, '') || '').trim().replace(/\/+$/, ''); }
+    function getProxyUrl() { return (String(lsGet(PROXY_KEY, '') || '').trim() || DEFAULT_PROXY).replace(/\/+$/, ''); }
+    function usingDefaultProxy() { return !String(lsGet(PROXY_KEY, '') || '').trim(); }
     function errText(e) { return e && e.name === 'AbortError' ? '逾時' : (e && e.message) || String(e); }
 
     async function fetchWithTimeout(url, ms) {
@@ -787,7 +790,7 @@
       const url = getProxyUrl();
       if (state === 'ok') { pill.className = 'pill pill-green'; pill.textContent = '已連線'; }
       else if (state === 'fail') { pill.className = 'pill pill-red'; pill.textContent = '連線失敗'; }
-      else { pill.className = 'pill ' + (url ? 'pill-blue' : 'pill-yellow'); pill.textContent = url ? '已設定' : '未設定'; }
+      else { pill.className = 'pill ' + (url ? 'pill-blue' : 'pill-yellow'); pill.textContent = url ? (usingDefaultProxy() ? '內置預設' : '自訂') : '未設定'; }
     }
 
     async function testProxy() {
@@ -818,10 +821,11 @@
 
     async function saveProxyUrl() {
       let v = ($('proxy-url').value || '').trim().replace(/\/+$/, '');
+      if (v === DEFAULT_PROXY) v = '';
       if (v && !/^https?:\/\//i.test(v)) v = 'https://' + v;
       if (v && !/^https:\/\/[^\s/]+(\/[^\s]*)?$/i.test(v)) { toast('網址格式唔啱', 'err'); return; }
       lsSet(PROXY_KEY, v);
-      $('proxy-url').value = v;
+      $('proxy-url').value = getProxyUrl();
       Object.keys(histCache).forEach((k) => delete histCache[k]);
       renderProxyPill();
       const ok = await testProxy();
