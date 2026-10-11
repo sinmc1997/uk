@@ -106,6 +106,12 @@
     /* 圖表 */
     #chart { width: 100%; height: 360px; border-radius: 8px; overflow: hidden; background: #0b1120; }
     .legend { font-size: 0.68rem; color: var(--text-dim); margin-top: 6px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .pane { position: relative; }
+    .pane + .pane { margin-top: 3px; }
+    #chart-bm { width: 100%; height: 160px; border-radius: 8px; overflow: hidden; background: #0b1120; }
+    .pane-legend { position: absolute; left: 8px; top: 5px; z-index: 5; font-size: 0.66rem; line-height: 1.5; color: #cbd5e1; pointer-events: none; text-shadow: 0 0 4px #0b1120, 0 0 2px #0b1120; max-width: calc(100% - 76px); }
+    .pane-legend b { color: #f8fafc; }
+    .badge .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
     .legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
     /* 日誌 */
     .trade-card { background: #0f172a; border: 1px solid var(--border); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
@@ -150,6 +156,9 @@
       .sug-row { grid-template-columns: 1.3fr 1fr auto; }
       .sug-row .sug-shares { display: none; }
       #chart { height: 300px; }
+      #chart-bm { height: 140px; }
+      .pane-legend { font-size: 0.6rem; line-height: 1.4; max-width: calc(100% - 70px); }
+      .pane-legend .lg-extra { display: none; }
     }
   </style>
 </head>
@@ -157,7 +166,7 @@
 
   <div class="header">
     <h1>美股倉位與風險計算機</h1>
-    <div class="sub">v4 · 交易日誌 · 績效統計 · 賬戶風控 · ATR 智能止損 · K 線圖 · 自選清單 RS 排名</div>
+    <div class="sub">v4.1 · 大盤/板塊自動對照圖 · 交易日誌 · 績效統計 · 賬戶風控 · ATR 智能止損 · K 線圖 · 自選清單 RS 排名</div>
     <div style="margin-top:8px;"><span onclick="resetDefaults()" style="font-size:0.7rem;color:var(--text-dim);text-decoration:underline;cursor:pointer;">重置所有輸入為預設值（唔會刪除日誌）</span></div>
   </div>
 
@@ -390,7 +399,7 @@
     </div>
 
     <div class="card">
-      <div class="card-title">8. K 線圖
+      <div class="card-title">8. K 線圖 · 大盤 / 板塊對照
         <span class="badge-group" style="margin-top:0;" id="range-badges">
           <span class="badge" data-range="63" onclick="setChartRange(63)">3M</span>
           <span class="badge" data-range="126" onclick="setChartRange(126)">6M</span>
@@ -398,17 +407,19 @@
           <span class="badge" data-range="9999" onclick="setChartRange(9999)">全部</span>
         </span>
       </div>
-      <div id="chart"></div>
+      <div class="badge-group" id="bm-badges" style="margin-top:0;margin-bottom:8px;"></div>
+      <div class="pane" id="chart-bm-box" style="display:none;"><div class="pane-legend" id="bm-legend"></div><div id="chart-bm"></div></div>
+      <div class="pane"><div class="pane-legend" id="stk-legend"></div><div id="chart"></div></div>
+      <div class="badge-group" id="ma-badges"></div>
       <div class="legend">
         <span><i style="background:#38bdf8"></i>入場</span>
         <span><i style="background:#ef4444"></i>止損</span>
         <span><i style="background:#22c55e"></i>R 目標</span>
-        <span><i style="background:#eab308"></i>MA20</span>
-        <span><i style="background:#a78bfa"></i>MA50</span>
-        <span><i style="background:#f8fafc"></i>MA200</span>
         <span>▲▼ 日誌入場/出場</span>
+        <span><i style="background:rgba(167,139,250,0.7)"></i>上圖：基準 MA50</span>
+        <span><i style="background:#f97316"></i>RS 線＝個股 ÷ 基準，向上即跑贏</span>
       </div>
-      <div class="note" id="chart-note">抓取數據後會顯示 K 線圖，並將入場、止損、R 目標畫成水平線（跟住你改輸入即時更新）。</div>
+      <div class="note" id="chart-note">抓取數據後會自動判斷隻股屬於邊個板塊同大盤，上面顯示基準走勢、下面顯示個股，兩個圖同步縮放同十字線。</div>
     </div>
 
     <div class="card">
@@ -838,6 +849,17 @@
       return out;
     }
 
+    function ema(arr, n) {
+      const out = new Array(arr.length).fill(NaN);
+      const k = 2 / (n + 1);
+      let prev = NaN, sum = 0;
+      for (let i = 0; i < arr.length; i++) {
+        if (i < n) { sum += arr[i]; if (i === n - 1) { prev = sum / n; out[i] = prev; } }
+        else { prev = arr[i] * k + prev * (1 - k); out[i] = prev; }
+      }
+      return out;
+    }
+
     function atrSeries(bars, n) {
       const out = new Array(bars.length).fill(NaN);
       let prev = NaN, sum = 0;
@@ -855,6 +877,7 @@
       const closes = bars.map((b) => b.close);
       const last = isFinite(livePrice) ? livePrice : closes[n - 1];
       const ma20Arr = sma(closes, 20), ma50Arr = sma(closes, 50), ma200Arr = sma(closes, 200);
+      const ma10Arr = sma(closes, 10), ema20Arr = ema(closes, 20);
       const atrArr = atrSeries(bars, 14);
       const hiLo = (k) => {
         const s = bars.slice(-k);
@@ -866,7 +889,8 @@
       const p20 = hiLo(20), p50 = hiLo(50), p52 = hiLo(252);
       const A = {
         n: n, last: last, prevClose: n >= 2 ? closes[n - 2] : NaN,
-        ma20Arr: ma20Arr, ma50Arr: ma50Arr, ma200Arr: ma200Arr, atrArr: atrArr,
+        ma20Arr: ma20Arr, ma50Arr: ma50Arr, ma200Arr: ma200Arr, atrArr: atrArr, ma10Arr: ma10Arr, ema20Arr: ema20Arr,
+        ma10: ma10Arr[n - 1], ema20: ema20Arr[n - 1],
         ma20: ma20Arr[n - 1], ma50: ma50Arr[n - 1], ma200: ma200Arr[n - 1],
         ma200Rising: n > 221 ? ma200Arr[n - 1] > ma200Arr[n - 21] : null,
         ma50Rising: n > 60 ? ma50Arr[n - 1] > ma50Arr[n - 11] : null,
@@ -904,6 +928,137 @@
     }
 
     // =====================================================================
+    // 板塊 / 大盤自動判斷
+    // =====================================================================
+    const ETF_NAME = {
+      SPY: '標普500', QQQ: '納指100', IWM: '羅素2000', DIA: '道瓊', VOO: '標普500', XLK: '科技', XLF: '金融', XLV: '醫療保健',
+      XLE: '能源', XLI: '工業', XLY: '非必需消費', XLP: '必需消費', XLC: '通訊服務', XLU: '公用事業', XLRE: '房地產', XLB: '原材料',
+      SMH: '半導體', IGV: '軟件', XBI: '生物科技', KRE: '地區銀行', ITA: '航空國防', GDX: '金礦', XRT: '零售', XHB: '建屋',
+      TAN: '太陽能', JETS: '航空', XME: '金屬採礦', IHI: '醫療器械', KIE: '保險', IBIT: '比特幣', XOP: '油氣開採', IYT: '運輸', ARKK: '創新成長'
+    };
+    const SECTOR_ETF = {
+      'Technology': 'XLK', 'Financial Services': 'XLF', 'Financial': 'XLF', 'Healthcare': 'XLV', 'Energy': 'XLE', 'Industrials': 'XLI',
+      'Consumer Cyclical': 'XLY', 'Consumer Defensive': 'XLP', 'Communication Services': 'XLC', 'Utilities': 'XLU',
+      'Real Estate': 'XLRE', 'Basic Materials': 'XLB'
+    };
+    // 細分行業優先（比 11 大板塊更準）
+    const INDUSTRY_RULES = [
+      [/semiconductor/i, 'SMH'], [/software/i, 'IGV'], [/biotech/i, 'XBI'], [/banks.*regional/i, 'KRE'],
+      [/aerospace|defense/i, 'ITA'], [/^gold/i, 'GDX'], [/oil & gas (e&p|drilling)/i, 'XOP'], [/solar/i, 'TAN'],
+      [/airlines/i, 'JETS'], [/residential construction/i, 'XHB'], [/steel|copper|aluminum|industrial metals/i, 'XME'],
+      [/medical (devices|instruments)/i, 'IHI'], [/insurance/i, 'KIE'],
+      [/^(specialty retail|department stores|apparel retail|home improvement retail)/i, 'XRT'],
+      [/trucking|railroads|integrated freight/i, 'IYT']
+    ];
+    // 常見股票內置對照（網絡抓唔到行業資料時都用得）
+    const STATIC_SECTOR = {};
+    [['SMH', 'NVDA AMD AVGO TSM MU QCOM INTC ASML AMAT LRCX KLAC MRVL ARM ON TXN ADI MCHP NXPI MPWR SMCI'],
+     ['IGV', 'MSFT ORCL CRM ADBE NOW INTU PANW CRWD SNOW PLTR DDOG ZS NET TWLO SHOP MDB TEAM WDAY ADSK FTNT OKTA HUBS APP UBER'],
+     ['XLC', 'GOOGL GOOG META NFLX DIS TMUS VZ T CMCSA SPOT RDDT PINS SNAP'],
+     ['XLK', 'AAPL DELL HPQ CSCO IBM ACN ANET'],
+     ['XLY', 'AMZN TSLA HD NKE MCD SBUX LOW BKNG ABNB CMG LULU'],
+     ['XLF', 'JPM BAC WFC C GS MS BLK SCHW AXP V MA PYPL COF HOOD'],
+     ['XLV', 'UNH LLY JNJ PFE MRK ABBV TMO ABT'],
+     ['XBI', 'MRNA VRTX REGN BIIB'],
+     ['XLE', 'XOM CVX COP OXY SLB EOG'],
+     ['XLI', 'CAT DE BA GE HON UPS'],
+     ['ITA', 'LMT RTX NOC GD'],
+     ['XLP', 'WMT COST PG KO PEP'],
+     ['IBIT', 'COIN MSTR MARA RIOT'],
+     ['GDX', 'NEM GOLD AEM']].forEach((x) => x[1].split(' ').forEach((t) => { STATIC_SECTOR[t] = x[0]; }));
+    const TECH_ETFS = ['SMH', 'IGV', 'XLK', 'XLC'];
+
+    async function detectProfile(sym) {
+      const cache = lsGet('usCalc_profiles', {}) || {};
+      const c = cache[sym];
+      if (c && Date.now() - c.t < 30 * 86400000) return c;
+      const p = { sym: sym, t: Date.now() };
+      try {
+        const info = await fetchParsed('https://query2.finance.yahoo.com/v1/finance/search?q=' + encodeURIComponent(sym) + '&quotesCount=6&newsCount=0&listsCount=0', (txt) => {
+          const j = JSON.parse(txt);
+          const q = (j.quotes || []).find((x) => String(x.symbol || '').toUpperCase() === sym);
+          if (!q) throw new Error('搵唔到 ' + sym);
+          return { name: q.longname || q.shortname || sym, sector: q.sectorDisp || q.sector || '', industry: q.industryDisp || q.industry || '', exch: q.exchDisp || q.exchange || '', type: q.quoteType || '' };
+        }, false);
+        Object.assign(p, info);
+        cache[sym] = p;
+        lsSet('usCalc_profiles', cache);
+      } catch (e) { p.err = e.message; }
+      return p;
+    }
+
+    function pickBenchmarks(sym, p) {
+      p = p || {};
+      const isEtf = p.type === 'ETF' || !!ETF_NAME[sym];
+      let sector = null, how = '';
+      if (isEtf) { how = sym + ' 本身係 ETF'; }
+      else if (STATIC_SECTOR[sym]) { sector = STATIC_SECTOR[sym]; how = '內置對照'; }
+      else {
+        const rule = INDUSTRY_RULES.find((r) => r[0].test(p.industry || ''));
+        if (rule) { sector = rule[1]; how = '行業：' + p.industry; }
+        else if (SECTOR_ETF[p.sector]) { sector = SECTOR_ETF[p.sector]; how = '板塊：' + p.sector; }
+        else how = p.err ? '抓唔到行業資料，用預設大盤' : '未能對應板塊 ETF';
+      }
+      if (sector === sym) sector = null;
+      const techish = TECH_ETFS.indexOf(sector) >= 0 || /nasdaq/i.test(p.exch || '');
+      const market = isEtf ? (sym === 'SPY' ? 'QQQ' : 'SPY') : (techish ? 'QQQ' : 'SPY');
+      return { sector: sector, market: market, how: how };
+    }
+
+    async function safeHistory(s) { try { return await fetchHistory(s); } catch (e) { return null; } }
+
+    // RS 線統計：個股 ÷ 基準
+    function rsStats(stk, bmData, bmSym) {
+      if (!stk || !bmData) return null;
+      const map = {};
+      bmData.bars.forEach((b) => { map[b.time] = b.close; });
+      const vals = [];
+      stk.bars.forEach((b) => { const c = map[b.time]; if (c > 0) vals.push(b.close / c); });
+      const n = vals.length;
+      if (n < 30) return null;
+      const last = vals[n - 1];
+      const hi = Math.max.apply(null, vals.slice(-252));
+      const ma50 = n >= 50 ? mean(vals.slice(-50)) : NaN;
+      const newHigh = last >= hi * 0.999;
+      const priceHigh = stk.a.last >= stk.a.hi52 * 0.999;
+      return { bmSym: bmSym, newHigh: newHigh, leading: newHigh && !priceHigh, aboveMa: isFinite(ma50) ? last > ma50 : null, chg20: n > 20 ? (last / vals[n - 21] - 1) * 100 : NaN };
+    }
+
+    function getBmData(sym) {
+      const m = mkt;
+      if (!m || !sym) return null;
+      if (m.sector && m.sector.sym === sym) return m.sector.data;
+      if (m.market && m.market.sym === sym) return m.market.data;
+      return (m.extra && m.extra[sym]) || null;
+    }
+
+    function renderBmBadges() {
+      const m = curMkt();
+      const box = $('bm-badges');
+      if (!m) { box.innerHTML = ''; return; }
+      const items = [];
+      if (m.pick.sector) items.push(['sector', m.pick.sector, '板塊 ' + m.pick.sector + ' ' + (ETF_NAME[m.pick.sector] || '')]);
+      items.push(['market', m.pick.market, '大盤 ' + m.pick.market]);
+      ['SPY', 'QQQ', 'IWM'].forEach((x) => { if (!items.some((i) => i[1] === x)) items.push([x, x, x]); });
+      box.innerHTML = '<span class="dim" style="font-size:0.72rem;align-self:center;white-space:nowrap;">上圖基準</span>' + items.map((i) => '<span class="badge' + (m.chartBmSym === i[1] ? ' active' : '') + '" onclick="setChartBm(\'' + i[0] + '\')">' + esc(i[2]) + '</span>').join('');
+    }
+
+    async function setChartBm(kind) {
+      const m = curMkt();
+      if (!m) { toast('請先抓取數據', 'err'); return; }
+      const sym = kind === 'sector' ? m.pick.sector : kind === 'market' ? m.pick.market : kind;
+      if (!sym) return;
+      if (!getBmData(sym)) {
+        toast('抓取 ' + sym + ' 中…');
+        try { m.extra[sym] = await fetchHistory(sym); } catch (e) { toast(sym + ' 抓取失敗', 'err'); return; }
+      }
+      lsSet('usCalc_chartBmKind', kind);
+      m.chartBmSym = sym;
+      renderBmBadges();
+      renderChart();
+    }
+
+    // =====================================================================
     // 正推：市場數據
     // =====================================================================
     let mkt = null; // { sym, data, bm }
@@ -918,6 +1073,7 @@
       const m = curMkt();
       $('mkt-badge').className = 'pill ' + (m ? 'pill-green' : 'pill-gray');
       $('mkt-badge').textContent = m ? '已更新' : (mkt ? '代號已改，請重新抓取' : '未抓取');
+      renderBmBadges();
       calcForward();
     }
 
@@ -927,13 +1083,25 @@
       $('symbol').value = sym;
       const btn = $('btn-fetch');
       btn.disabled = true;
-      $('fetch-status').innerHTML = '正在抓取 ' + esc(sym) + ' 兩年日線…';
+      $('fetch-status').innerHTML = '正在抓取 ' + esc(sym) + ' 兩年日線，同時判斷所屬板塊…';
       try {
-        const data = await fetchHistory(sym);
-        let bm = null;
-        const bmSym = getBenchmark();
-        if (bmSym !== sym) { try { bm = await fetchHistory(bmSym); } catch (e) { bm = null; } }
-        mkt = { sym: sym, data: data, bm: bm ? { sym: bm.symbol, data: bm } : null };
+        const first = await Promise.all([fetchHistory(sym), detectProfile(sym)]);
+        const data = first[0], prof = first[1];
+        const pick = pickBenchmarks(sym, prof);
+        $('fetch-status').innerHTML = '正在抓取基準 ' + esc([pick.sector, pick.market].filter(Boolean).join(' / ')) + '…';
+        const bms = await Promise.all([safeHistory(pick.market), pick.sector ? safeHistory(pick.sector) : Promise.resolve(null)]);
+        mkt = {
+          sym: sym, data: data, prof: prof, pick: pick, extra: {},
+          market: bms[0] ? { sym: pick.market, data: bms[0] } : null,
+          sector: bms[1] ? { sym: pick.sector, data: bms[1] } : null
+        };
+        mkt.rsSector = mkt.sector ? rsStats(data, mkt.sector.data, mkt.sector.sym) : null;
+        mkt.rsMarket = mkt.market ? rsStats(data, mkt.market.data, mkt.market.sym) : null;
+        // 上圖基準：記住你上次揀「板塊」定「大盤」定固定 ETF
+        const kind = lsGet('usCalc_chartBmKind', 'sector');
+        let want = kind === 'sector' ? (mkt.sector ? pick.sector : pick.market) : kind === 'market' ? pick.market : kind;
+        if (want && !getBmData(want)) { const x = await safeHistory(want); if (x) mkt.extra[want] = x; else want = mkt.sector ? pick.sector : pick.market; }
+        mkt.chartBmSym = getBmData(want) ? want : null;
         $('price').value = roundPx(data.price);
         if (periodSel > 0) applyPeriod(periodSel, true);
         // 換股後如果舊止損已無效（高過現價或闊過 6 ATR），自動改用 2×ATR
@@ -947,6 +1115,7 @@
         $('fetch-status').innerHTML = '<span class="val-green">✓</span> ' + esc(sym) + ' · 來源 ' + data.source + ' · 報價時間 ' + esc(t) + '（可能有延遲）';
         onSymbolInput();
         renderMarket();
+        renderBmBadges();
         renderChart();
         saveState();
       } catch (e) {
@@ -974,12 +1143,23 @@
           '<div style="font-size:0.85rem;font-weight:700;margin-top:4px;"><span class="val-red">' + fmtPrice(lo) + '</span></div>' +
           '<div class="result-sub">距低 ' + fmtPct((lo / p - 1) * 100, 1) + '</div></div>';
       };
-      let rsHtml = '--';
-      if (m.bm) {
-        const b = m.bm.data.a;
-        const ex20 = a.r20 - b.r20, ex60 = a.r60 - b.r60;
-        rsHtml = '<span class="' + signCls(ex20) + '">20日 ' + fmtPct(ex20, 1) + '</span> · <span class="' + signCls(ex60) + '">60日 ' + fmtPct(ex60, 1) + '</span> <span class="dim">vs ' + esc(m.bm.sym || m.bm.data.symbol) + '</span>';
+      const prof = m.prof || {}, pick = m.pick || {};
+      const exLine = (b, kind) => {
+        if (!b) return '';
+        const ba = b.data.a;
+        const e20 = a.r20 - ba.r20, e60 = a.r60 - ba.r60;
+        return '<div>' + kind + ' <b>' + esc(b.sym) + '</b> ' + trendPill(ba.trendKey) + ' 相對：<span class="' + signCls(e20) + '">20日 ' + fmtPct(e20, 1) + '</span> · <span class="' + signCls(e60) + '">60日 ' + fmtPct(e60, 1) + '</span></div>';
+      };
+      const rs = m.rsSector || m.rsMarket;
+      let rsLine = '';
+      if (rs) {
+        rsLine = '<div>RS 線（vs ' + esc(rs.bmSym) + '）：' +
+          (rs.newHigh ? '<span class="pill pill-green">創 52 週新高</span>' + (rs.leading ? ' <span class="val-green">領先股價創新高，強勢訊號</span>' : '')
+            : rs.aboveMa ? '<span class="pill pill-blue">企喺 50 日均線上</span>' : '<span class="pill pill-red">跌穿 50 日均線</span>') +
+          ' <span class="dim">20日 ' + fmtPct(rs.chg20, 1) + '</span></div>';
       }
+      const profHtml = '<div>🏷 <b>' + esc(prof.name || m.sym) + '</b>' + (prof.sector ? ' · ' + esc(prof.sector) : '') + (prof.industry ? ' › ' + esc(prof.industry) : '') + (prof.exch ? ' · ' + esc(prof.exch) : '') + '</div>' +
+        '<div class="dim" style="font-size:0.72rem;">自動基準：' + (pick.sector ? '板塊 ' + esc(pick.sector) + '（' + esc(ETF_NAME[pick.sector] || '') + '）· ' : '') + '大盤 ' + esc(pick.market || '--') + (pick.how ? ' — ' + esc(pick.how) : '') + '</div>';
       const rv = a.relVol;
       wrap.innerHTML =
         '<div class="grid-3">' +
@@ -991,7 +1171,8 @@
           maRow('MA20', a.ma20) + maRow('MA50', a.ma50) + maRow('MA200', a.ma200) +
         '</tbody></table></div>' +
         '<div class="grid-3" style="margin-top:10px;">' + hl('20 日', a.hi20, a.lo20) + hl('50 日', a.hi50, a.lo50) + hl('52 週', a.hi52, a.lo52, a.full52) + '</div>' +
-        '<div class="info-box">趨勢：' + trendPill(a.trendKey) + ' ' + esc(a.trendText) + '<br>相對強弱：' + rsHtml + '</div>' +
+        '<div class="info-box">' + profHtml + '<div style="margin-top:6px;">趨勢：' + trendPill(a.trendKey) + ' ' + esc(a.trendText) + '</div>' +
+          exLine(m.sector, '板塊') + exLine(m.market, '大盤') + rsLine + '</div>' +
         (a.full52 === false ? '<div class="note">* 上市日數不足一年，52 週數據用現有全部歷史。</div>' : '');
     }
 
@@ -1300,16 +1481,26 @@
           else if (room >= 1) add('上方空間', 15, 'warn', '到 ' + res.name + ' 只有 ' + room.toFixed(1) + 'R，第一目標可能受阻');
           else add('上方空間', 15, 'fail', '到 ' + res.name + ' 不足 1R（' + room.toFixed(2) + 'R），回報風險比差');
         }
-        // 5. 相對強弱
-        if (m.bm) {
-          const b = m.bm.data.a;
-          const ex = isFinite(a.r60) && isFinite(b.r60) ? a.r60 - b.r60 : a.r20 - b.r20;
-          const lbl = isFinite(a.r60) ? '60日' : '20日';
-          if (!isFinite(ex)) add('相對強弱', 15, 'na', '數據不足');
-          else if (ex > 0) add('相對強弱', 15, 'pass', lbl + '跑贏 ' + m.bm.data.symbol + ' ' + fmtPct(ex, 1));
-          else if (ex > -5) add('相對強弱', 15, 'warn', lbl + '跑輸 ' + m.bm.data.symbol + ' ' + fmtPct(ex, 1));
-          else add('相對強弱', 15, 'fail', lbl + '明顯跑輸 ' + m.bm.data.symbol + ' ' + fmtPct(ex, 1) + '，弱勢股');
-        } else add('相對強弱', 15, 'na', '基準數據未抓到');
+        // 5. 相對強弱（板塊 + 大盤）
+        const exOf = (b) => { const ba = b.data.a; return isFinite(a.r60) && isFinite(ba.r60) ? a.r60 - ba.r60 : a.r20 - ba.r20; };
+        const rel = [m.sector, m.market].filter(Boolean).map((b) => ({ sym: b.sym, ex: exOf(b) })).filter((x) => isFinite(x.ex));
+        if (!rel.length) add('相對強弱', 15, 'na', '基準數據未抓到');
+        else {
+          const beat = rel.filter((x) => x.ex > 0).length;
+          const txt = rel.map((x) => (x.ex >= 0 ? '跑贏 ' : '跑輸 ') + x.sym + ' ' + fmtPct(x.ex, 1)).join('，');
+          const rsx = m.rsSector || m.rsMarket;
+          const bonus = rsx && rsx.newHigh ? '；RS 線創 52 週新高' : '';
+          if (beat === rel.length) add('相對強弱', 15, 'pass', '60日' + txt + bonus);
+          else if (beat > 0 || Math.min.apply(null, rel.map((x) => x.ex)) > -5) add('相對強弱', 15, 'warn', '60日' + txt + bonus);
+          else add('相對強弱', 15, 'fail', '60日' + txt + '，屬弱勢股');
+        }
+        // 5b. 大盤環境
+        if (m.market) {
+          const mk = m.market.data.a, ms = m.market.sym;
+          if (mk.trendKey === 'strong' || mk.trendKey === 'up') add('大盤環境', 10, 'pass', '大盤 ' + ms + ' ' + mk.trendText + '，順風');
+          else if (mk.trendKey === 'mixed') add('大盤環境', 10, 'warn', '大盤 ' + ms + ' 震盪，突破較易失敗，可減注');
+          else add('大盤環境', 10, 'fail', '大盤 ' + ms + ' 空頭排列，做多逆風，建議減注或觀望');
+        } else add('大盤環境', 10, 'na', '大盤數據未抓到');
         // 6. 距 52 週高
         const off = (p / a.hi52 - 1) * 100;
         if (off >= -15) add('52 週位置', 10, 'pass', '距 52 週高 ' + fmtPct(off, 1) + '，屬領導股位置');
@@ -1382,28 +1573,67 @@
       return null;
     }
 
+    const MA_DEFS = [
+      ['ma10', 'MA10', '#22d3ee', 'ma10Arr'], ['ma20', 'MA20', '#eab308', 'ma20Arr'], ['ema20', 'EMA20', '#f472b6', 'ema20Arr'],
+      ['ma50', 'MA50', '#a78bfa', 'ma50Arr'], ['ma200', 'MA200', '#f8fafc', 'ma200Arr']
+    ];
+    let maOn = Object.assign({ ma10: true, ma20: true, ema20: false, ma50: true, ma200: true, rs: true }, lsGet('usCalc_maOn', {}));
+
+    function renderMaBadges() {
+      $('ma-badges').innerHTML = MA_DEFS.map((d) => '<span class="badge' + (maOn[d[0]] ? ' active' : '') + '" onclick="toggleMa(\'' + d[0] + '\')"><i class="dot" style="background:' + d[2] + '"></i>' + d[1] + '</span>').join('') +
+        '<span class="badge' + (maOn.rs ? ' active' : '') + '" onclick="toggleMa(\'rs\')"><i class="dot" style="background:#f97316"></i>RS 線</span>';
+    }
+
+    function toggleMa(k) {
+      maOn[k] = !maOn[k];
+      lsSet('usCalc_maOn', maOn);
+      renderMaBadges();
+      if (!chartObj) return;
+      const sr = k === 'rs' ? chartObj.rsSeries : chartObj.maSeries[k];
+      if (sr) sr.applyOptions({ visible: maOn[k] });
+      chartObj.setLegends(chartObj.hoverTime);
+    }
+
+    function destroyCharts() {
+      if (!chartObj) return;
+      try { chartObj.chart.remove(); } catch (e) {}
+      if (chartObj.bmChart) { try { chartObj.bmChart.remove(); } catch (e) {} }
+      chartObj = null;
+    }
+
+    function fmtVol(v) {
+      if (!isFinite(v)) return '--';
+      return v >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : String(v);
+    }
+
     async function renderChart() {
-      const box = $('chart');
       const note = $('chart-note');
       const m = curMkt();
       if (!m) return;
       try { await loadChartLib(); }
       catch (e) { note.textContent = '圖表庫載入失敗（需要連到 unpkg / jsdelivr）。其他功能不受影響。'; return; }
-      if (chartObj) { try { chartObj.chart.remove(); } catch (e) {} chartObj = null; }
-      box.innerHTML = '';
+      destroyCharts();
+      $('chart').innerHTML = '';
+      $('chart-bm').innerHTML = '';
       const LC = window.LightweightCharts;
-      const chart = LC.createChart(box, {
+      const opts = (showTime) => ({
         autoSize: true,
         layout: { background: { type: 'solid', color: '#0b1120' }, textColor: '#94a3b8', fontSize: 11 },
         grid: { vertLines: { color: '#162033' }, horzLines: { color: '#162033' } },
-        rightPriceScale: { borderColor: '#334155' },
-        timeScale: { borderColor: '#334155', rightOffset: 4 },
+        rightPriceScale: { borderColor: '#334155', minimumWidth: 66 },
+        timeScale: { borderColor: '#334155', rightOffset: 4, visible: showTime },
         crosshair: { mode: LC.CrosshairMode.Normal }
       });
+      const candleColors = { upColor: '#22c55e', downColor: '#ef4444', borderVisible: false, wickUpColor: '#22c55e', wickDownColor: '#ef4444' };
       const bars = m.data.bars;
       const a = m.data.a;
-      const candle = chart.addCandlestickSeries({
-        upColor: '#22c55e', downColor: '#ef4444', borderVisible: false, wickUpColor: '#22c55e', wickDownColor: '#ef4444',
+      const times = bars.map((b) => b.time);
+      const stkIdx = {};
+      times.forEach((t, i) => { stkIdx[t] = i; });
+
+      // ---------- 下圖：個股 ----------
+      const chart = LC.createChart($('chart'), opts(true));
+      const candle = chart.addCandlestickSeries(Object.assign({}, candleColors, {
         // 令自動縮放包埋止損同 R 目標線
         autoscaleInfoProvider: (orig) => {
           const res = orig();
@@ -1414,19 +1644,18 @@
           }
           return res;
         }
-      });
-      candle.priceScale().applyOptions({ scaleMargins: { top: 0.06, bottom: 0.22 } });
+      }));
+      candle.priceScale().applyOptions({ scaleMargins: { top: 0.2, bottom: 0.22 } });
       candle.setData(bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
       const vol = chart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: 'vol', lastValueVisible: false, priceLineVisible: false });
       chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
       vol.setData(bars.map((b) => ({ time: b.time, value: b.volume, color: b.close >= b.open ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)' })));
-      const maLine = (arr, color) => {
-        const s = chart.addLineSeries({ color: color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
-        s.setData(bars.map((b, i) => ({ time: b.time, value: arr[i] })).filter((pt) => isFinite(pt.value)));
-      };
-      maLine(a.ma20Arr, '#eab308');
-      maLine(a.ma50Arr, '#a78bfa');
-      maLine(a.ma200Arr, '#f8fafc');
+      const maSeries = {};
+      MA_DEFS.forEach((d) => {
+        const sr = chart.addLineSeries({ color: d[2], lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, visible: !!maOn[d[0]] });
+        sr.setData(bars.map((b, i) => ({ time: b.time, value: a[d[3]][i] })).filter((pt) => isFinite(pt.value)));
+        maSeries[d[0]] = sr;
+      });
       // 日誌入場/出場標記
       const markers = [];
       journal.filter((t) => t.symbol === m.sym).forEach((t) => {
@@ -1437,10 +1666,105 @@
       });
       markers.sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : 0));
       if (markers.length) candle.setMarkers(markers);
-      chartObj = { chart: chart, candle: candle, lines: [], sym: m.sym, len: bars.length };
+
+      // ---------- 上圖：大盤 / 板塊（按個股日期對齊，確保兩圖逐根 K 對齊） ----------
+      const bmSym = m.chartBmSym;
+      const bmD = bmSym ? getBmData(bmSym) : null;
+      const bmMap = {}, bmIdx = {};
+      let bmChart = null, bmCandle = null, rsSeries = null;
+      $('chart-bm-box').style.display = bmD ? 'block' : 'none';
+      if (bmD) {
+        bmD.bars.forEach((b, i) => { bmMap[b.time] = b; bmIdx[b.time] = i; });
+        bmChart = LC.createChart($('chart-bm'), opts(false));
+        bmCandle = bmChart.addCandlestickSeries(Object.assign({}, candleColors, { priceLineVisible: false }));
+        bmCandle.priceScale().applyOptions({ scaleMargins: { top: 0.32, bottom: 0.06 } });
+        bmCandle.setData(times.map((t) => { const b = bmMap[t]; return b ? { time: t, open: b.open, high: b.high, low: b.low, close: b.close } : { time: t }; }));
+        const bm50 = bmChart.addLineSeries({ color: 'rgba(167,139,250,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+        bm50.setData(times.map((t) => { const i = bmIdx[t]; const v = i !== undefined ? bmD.a.ma50Arr[i] : NaN; return isFinite(v) ? { time: t, value: v } : { time: t }; }));
+        rsSeries = bmChart.addLineSeries({ color: '#f97316', lineWidth: 2, priceScaleId: 'rs', priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false, visible: !!maOn.rs });
+        bmChart.priceScale('rs').applyOptions({ scaleMargins: { top: 0.34, bottom: 0.08 } });
+        rsSeries.setData(times.map((t, i) => { const b = bmMap[t]; return b && b.close > 0 ? { time: t, value: bars[i].close / b.close } : { time: t }; }));
+      }
+
+      // ---------- 圖例（似 TradingView 左上角） ----------
+      const fx = (v) => (isFinite(v) ? v.toFixed(v < 10 ? 3 : 2) : '--');
+      const ohlc = (b, prev) => {
+        if (!b) return '<span class="dim">（當日冇數據）</span>';
+        const chg = prev ? b.close - prev.close : NaN;
+        const c = !isFinite(chg) || chg >= 0 ? '#22c55e' : '#ef4444';
+        const v = (x) => '<span style="color:' + c + '">' + fx(x) + '</span>';
+        return '開' + v(b.open) + ' 高' + v(b.high) + ' 低' + v(b.low) + ' 收' + v(b.close) +
+          (isFinite(chg) ? ' <span style="color:' + c + '">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' (' + fmtPct(chg / prev.close * 100) + ')</span>' : '');
+      };
+      const bmKind = m.sector && m.sector.sym === bmSym ? '板塊' : m.market && m.market.sym === bmSym ? '大盤' : '基準';
+      const rsInfo = m.sector && m.sector.sym === bmSym ? m.rsSector : m.market && m.market.sym === bmSym ? m.rsMarket : (bmD ? rsStats(m.data, bmD, bmSym) : null);
+      const setLegends = (time) => {
+        const i = time !== undefined && time !== null && stkIdx[time] !== undefined ? stkIdx[time] : bars.length - 1;
+        const t = times[i];
+        let h = '<b>' + esc(m.sym) + '</b> <span class="dim"><span class="lg-extra">' + esc(m.prof && m.prof.name ? m.prof.name + ' · ' : '') + '1天 · </span>' + t + '</span> ' + ohlc(bars[i], bars[i - 1]);
+        const maTxt = MA_DEFS.filter((d) => maOn[d[0]]).map((d) => '<span style="color:' + d[2] + '">' + d[1] + ' ' + fx(a[d[3]][i]) + '</span>').join('  ');
+        if (maTxt) h += '<br>' + maTxt;
+        h += '<br class="lg-extra"><span class="dim lg-extra">成交量 ' + fmtVol(bars[i].volume) + (isFinite(a.avgVol50) ? ' / 50日均 ' + fmtVol(a.avgVol50) : '') + '</span>';
+        $('stk-legend').innerHTML = h;
+        if (bmD) {
+          const bi = bmIdx[t];
+          let bh = '<b>' + esc(bmSym) + '</b> <span class="dim">' + bmKind + (ETF_NAME[bmSym] ? ' · ' + ETF_NAME[bmSym] : '') + '</span>  ' + ohlc(bi !== undefined ? bmD.bars[bi] : null, bi > 0 ? bmD.bars[bi - 1] : null);
+          if (maOn.rs) {
+            bh += '<br><span style="color:#f97316">RS 線 ' + (bmMap[t] ? (bars[i].close / bmMap[t].close).toFixed(4) : '--') + '</span>' +
+              (rsInfo ? (rsInfo.newHigh ? ' <span class="val-green">● 創 52 週新高</span>' : rsInfo.aboveMa ? ' <span class="dim">企喺 50 日線上</span>' : ' <span class="val-red">弱於基準</span>') : '');
+          }
+          $('bm-legend').innerHTML = bh;
+        }
+        if (chartObj) chartObj.hoverTime = time;
+      };
+
+      // ---------- 兩圖同步：縮放 / 平移 ----------
+      if (bmChart) {
+        let lock = false;
+        const link = (src, dst) => src.timeScale().subscribeVisibleLogicalRangeChange((r) => {
+          if (lock || !r) return;
+          lock = true;
+          try { dst.timeScale().setVisibleLogicalRange(r); } finally { lock = false; }
+        });
+        link(chart, bmChart);
+        link(bmChart, chart);
+      }
+
+      // ---------- 兩圖同步：十字線 ----------
+      const st = {
+        stk: { chart: chart, series: candle, bar: (t) => bars[stkIdx[t]], active: false },
+        bm: bmChart ? { chart: bmChart, series: bmCandle, bar: (t) => bmMap[t], active: false } : null
+      };
+      const onMove = (src, dst) => (p) => {
+        const hasPt = p.time !== undefined && !!p.point;
+        if (hasPt && !p.sourceEvent) return; // 由另一個圖程式設定，唔再轉發，避免來回觸發
+        if (hasPt) {
+          st[src].active = true;
+          const d = st[dst];
+          if (d) {
+            const b = d.bar(p.time);
+            if (b) { d.chart.setCrosshairPosition(b.close, p.time, d.series); d.active = true; }
+            else if (d.active) { d.active = false; d.chart.clearCrosshairPosition(); }
+          }
+          setLegends(p.time);
+        } else {
+          if (!st[src].active) return;
+          st[src].active = false;
+          if (st[dst] && st[dst].active) { st[dst].active = false; st[dst].chart.clearCrosshairPosition(); }
+          setLegends(null);
+        }
+      };
+      chart.subscribeCrosshairMove(onMove('stk', 'bm'));
+      if (bmChart) bmChart.subscribeCrosshairMove(onMove('bm', 'stk'));
+
+      chartObj = { chart: chart, candle: candle, bmChart: bmChart, bmCandle: bmCandle, rsSeries: rsSeries, maSeries: maSeries, lines: [], sym: m.sym, len: bars.length, bmSym: bmSym, setLegends: setLegends, hoverTime: null };
+      setLegends(null);
+      renderMaBadges();
       setChartRange(chartRange, true);
       updatePriceLines();
-      note.textContent = '雙指/滾輪可縮放，拖動可平移。水平線會跟住你改入場價、止損、R 目標即時更新。';
+      note.textContent = bmD
+        ? '上圖係 ' + bmSym + '（' + bmKind + '），下圖係 ' + m.sym + '：兩圖同步縮放、平移同十字線。撳上面按鈕可以轉基準。'
+        : '基準數據抓唔到，只顯示個股。雙指/滾輪縮放，拖動平移。';
     }
 
     function setChartRange(n, silent) {
@@ -2211,6 +2535,7 @@
     document.querySelectorAll('#range-badges .badge').forEach((b) => b.classList.toggle('active', +b.dataset.range === chartRange));
     toggleStopMode();
     calcReverse();
+    renderMaBadges();
     renderWlChips();
     renderWatchTable();
     switchTab(lsGet('usCalc_tab', 'forward'));
